@@ -27,8 +27,12 @@ services:
     container_name: nginx
     ports:
       - 80:80
+    environment:
+      - MLFLOW_DOMAIN=$MLFLOW_DOMAIN
+      - STATUS_DOMAIN=$STATUS_DOMAIN
     volumes:
-      - ./containers/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./containers/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
+      - ./containers/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template
       # - mlflow-users:/etc/nginx
     depends_on:
       - mlflow
