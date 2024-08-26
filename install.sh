@@ -47,5 +47,6 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
 fi
 
 . .env
+DATBASE_URI="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB"
 
 docker compose up -d

@@ -10,12 +10,11 @@ services:
       - MUID=$UID
       - MGID=$GID
       - USER=$(whoami)
-      # - POSTGRES_DB=mlruns
-      # - POSTGRES_USER=mlflow
-      # - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-    command: mlflow server -h 0.0.0.0 -p 5000 \
-              --backend-store-uri $DATBASE_URI 
-              # --default-artifact-root file:///home/$USER/mlflowProjects/artifacts
+      - DATABASE_URI=postgresql://mlflow:$POSTGRES_PASSWORD@postgresql:5432/mlruns
+    command: >
+      mlflow server -h 0.0.0.0 -p 5000
+      --backend-store-uri ${DATABASE_URI} 
+      # --default-artifact-root file:///home/$USER/mlflowProjects/artifacts
     # volumes:
     #   - ./mlflowProjects:/home/$USER/mlflowProjects
 
