@@ -33,7 +33,8 @@ USER ${USER}
 
 # Install miniconda
 ENV CONDA_DIR=${HOME}/.conda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
+RUN ARCH=$(uname -i) && \
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${ARCH}.sh -O ~/miniconda.sh && \
     chmod 0700 ~/miniconda.sh && \
     bash ~/miniconda.sh -b -p ${CONDA_DIR} && \
     rm ~/miniconda.sh
