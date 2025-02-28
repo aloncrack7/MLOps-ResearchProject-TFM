@@ -5,7 +5,7 @@ RUN apt-get update && \
     apt-get install -y python3 \
         python3-pip \
         wget \
-        libpq-dev 
+        libpq-dev
 
 # User without privileges
 SHELL ["/bin/bash", "--login", "-c"]
@@ -58,8 +58,7 @@ RUN conda update --name base --channel defaults conda && \
 
 RUN conda activate ${ENV_PREFIX} && \
     python3 -m pip install --upgrade pip && \
-    pip install mlflow && \
-    pip install psycopg2-binary 
+    pip install mlflow psycopg2-binary boto3
     # pip install hdfs
 
 ENTRYPOINT ["/entrypoint.sh"]

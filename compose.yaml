@@ -4,22 +4,24 @@ services:
   mlflow:
     build: ./containers/mlflow
     container_name: mlflow
+    env_file: 
+      - .env
     ports:
       - 5000:5000
     environment:
       - MUID=$UID
       - MGID=$GID
       - USER=$(whoami)
-      - DATABASE_URI=postgresql://mlflow:$POSTGRES_PASSWORD@postgresql:5432/mlruns
+      - AWS_REGION=us-east-2
     command: >
       mlflow server -h 0.0.0.0 -p 5000
-      --backend-store-uri ${DATABASE_URI} 
-      # --default-artifact-root file:///home/$USER/mlflowProjects/artifacts
-    # volumes:
-    #   - ./mlflowProjects:/home/$USER/mlflowProjects
+      --backend-store-uri postgresql://mlflow:${POSTGRES_PASSWORD}@postgresql:5432/mlruns
+      --default-artifact-root s3://mlflow-artifacts-alonmadrid/artifacts
 
     networks:
       - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   postgresql:
     image: postgres:16.3
