@@ -21,9 +21,12 @@ logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 
 # Important replace the URL with the one of your server
-os.environ['MLFLOW_TRACKING_URI']='http://mlflow.yourDomanin.example'
+os.environ['MLFLOW_TRACKING_URI']='http://mlflow.yourDomain.example'
 # Important replace the name of the experiment with the one you want
 experiment_name='default'
+# Important replace the username and password with the one of your server
+os.environ['MLFLOW_TRACKING_USERNAME'] = 'username'
+os.environ['MLFLOW_TRACKING_PASSWORD'] = 'password'
 
 while experiment_name=='':
     experiment_name=input("""Introduce the name of the experiment 
