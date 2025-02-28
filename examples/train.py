@@ -5,6 +5,7 @@
 import os
 import warnings
 import sys
+from dotenv import load_dotenv
 
 import pandas as pd
 import numpy as np
@@ -20,22 +21,16 @@ import logging
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 
-# Important replace the URL with the one of your server
-os.environ['MLFLOW_TRACKING_URI']='http://mlflow.yourDomain.example'
-# Important replace the name of the experiment with the one you want
-experiment_name='default'
-# Important replace the username and password with the one of your server
-os.environ['MLFLOW_TRACKING_USERNAME'] = 'username'
-os.environ['MLFLOW_TRACKING_PASSWORD'] = 'password'
+# Load environment variables from a .env file
+load_dotenv('./example.env')
 
+experiment_name = os.getenv("EXPERIMENT_NAME")
 while experiment_name=='':
     experiment_name=input("""Introduce the name of the experiment 
                                 \ror exit.""")
 
 if experiment_name in ['exit', "e"]:
     exit(-1)
-
-os.environ['MLFLOW_EXPERIMENT_NAME']=experiment_name
 
 def eval_metrics(actual, pred):
     rmse = np.sqrt(mean_squared_error(actual, pred))
