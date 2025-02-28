@@ -16,7 +16,7 @@ services:
     command: >
       mlflow server -h 0.0.0.0 -p 5000
       --backend-store-uri postgresql://mlflow:${POSTGRES_PASSWORD}@postgresql:5432/mlruns
-      --default-artifact-root s3://mlflow-artifacts-alonmadrid/artifacts
+      --default-artifact-root ${DEFAULT_ARTIFACT_ROOT}
 
     networks:
       - backend
