@@ -20,18 +20,19 @@ import logging
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 
-os.environ['MLFLOW_TRACKING_URI']='http://mlflow.alonmadrid.es'
-#!IMPORTTANTE: remplazar el nombre del experimento
-nombreExperimento='prueba'
+# Important replace the URL with the one of your server
+os.environ['MLFLOW_TRACKING_URI']='http://mlflow.yourDomanin.example'
+# Important replace the name of the experiment with the one you want
+experiment_name='default'
 
-while nombreExperimento=='':
-    nombreExperimento=input("""Introduce the name of the experiment 
+while experiment_name=='':
+    experiment_name=input("""Introduce the name of the experiment 
                                 \ror exit.""")
 
-if nombreExperimento in ['exit', "e"]:
+if experiment_name in ['exit', "e"]:
     exit(-1)
 
-os.environ['MLFLOW_EXPERIMENT_NAME']=nombreExperimento
+os.environ['MLFLOW_EXPERIMENT_NAME']=experiment_name
 
 def eval_metrics(actual, pred):
     rmse = np.sqrt(mean_squared_error(actual, pred))
