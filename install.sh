@@ -44,9 +44,8 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "MLFLOW_DOMAIN" "mlflow domain" $store_config
     set_up_enviroment_variable "STATUS_DOMAIN" "status doamin" $store_config
     set_up_enviroment_variable "POSTGRES_PASSWORD" "postgres password" $store_config
+    set_up_enviroment_variable "DEFAULT_ARTIFACT_ROOT" "artifact location" $store_config
+    set_up_enviroment_variable "AWS_REGION" "AWS region" $store_config
 fi
-
-. .env
-DATBASE_URI="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB"
 
 docker compose up -d
