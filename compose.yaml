@@ -46,7 +46,7 @@ services:
       - backend
       
   nginx:
-    image: nginx:latest
+    build: ./containers/nginx
     container_name: nginx
     ports:
       - 80:80
@@ -56,7 +56,7 @@ services:
     volumes:
       - ./containers/nginx/nginx.conf:/etc/nginx/nginx.conf:rw
       - ./containers/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:rw
-      # - mlflow-users:/etc/nginx
+      - ./.tmp/.htpasswd:/etc/nginx/.htpasswd
     depends_on:
       - mlflow
     networks:
@@ -81,6 +81,6 @@ networks:
   frontend:
 
 volumes:
-#   mlflow-users:  
+  mlflow-users:  
   uptime-kuma:
   mlrunsvol:
