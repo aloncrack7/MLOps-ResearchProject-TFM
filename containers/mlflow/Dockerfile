@@ -33,8 +33,7 @@ USER ${USER}
 
 # Install miniconda
 ENV CONDA_DIR=${HOME}/.conda
-RUN ARCH=$(uname -i) && \
-    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${ARCH}.sh -O ~/miniconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
     chmod 0700 ~/miniconda.sh && \
     bash ~/miniconda.sh -b -p ${CONDA_DIR} && \
     rm ~/miniconda.sh
@@ -58,7 +57,7 @@ RUN conda update --name base --channel defaults conda && \
 
 RUN conda activate ${ENV_PREFIX} && \
     python3 -m pip install --upgrade pip && \
-    pip install mlflow psycopg2-binary boto3
+    pip install mlflow mlflow[auth] psycopg2-binary boto3
     # pip install hdfs
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -46,6 +46,7 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "POSTGRES_PASSWORD" "postgres password" $store_config
     set_up_enviroment_variable "DEFAULT_ARTIFACT_ROOT" "artifact location" $store_config
     set_up_enviroment_variable "AWS_REGION" "AWS region" $store_config
+    set_up_enviroment_variable "MLFLOW_FLASK_SERVER_SECRET_KEY" "secret server key" $store_config
 fi
 
 docker compose up -d
