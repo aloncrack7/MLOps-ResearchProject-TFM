@@ -59,7 +59,6 @@ RUN conda update --name base --channel defaults conda && \
 RUN conda activate ${ENV_PREFIX} && \
     python3 -m pip install --upgrade pip && \
     pip install mlflow psycopg2-binary boto3
-    # pip install hdfs
 
 ENTRYPOINT ["/entrypoint.sh"]
 EXPOSE 5000

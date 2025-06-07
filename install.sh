@@ -45,7 +45,11 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "STATUS_DOMAIN" "status doamin" $store_config
     set_up_enviroment_variable "POSTGRES_PASSWORD" "postgres password" $store_config
     set_up_enviroment_variable "DEFAULT_ARTIFACT_ROOT" "artifact location" $store_config
-    set_up_enviroment_variable "AWS_REGION" "AWS region" $store_config
+
+    read -p 'Are you using S3/AWS [S](default) or HDFS/GCP [H]?' type_of_server
+    if [[ ! -z $type_of_server ]] && ([[ $type_of_server = 'S' ]] || [[ $type_of_server = 's' ]]); then
+    	set_up_enviroment_variable "AWS_REGION" "AWS region" $store_config
+    fi
 fi
 
 docker compose up -d
