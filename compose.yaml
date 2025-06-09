@@ -30,7 +30,7 @@ services:
       - POSTGRES_DB=mlruns
       - POSTGRES_USER=mlflow
       - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-      - PGDATA=/var/lib/postgresql/data/database
+      - PGDATA=/var/lib/postgresql/data
 
     # restart: unless-stopped
 
@@ -38,7 +38,7 @@ services:
       - 5432:5432
 
     volumes:
-      - mlrunsvol:/var/lib/postgresql:rw
+      - mlrunsvol:/var/lib/postgresql/data:rw
 
     networks:
       - backend
