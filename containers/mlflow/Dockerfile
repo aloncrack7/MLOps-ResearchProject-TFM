@@ -13,19 +13,14 @@ SHELL ["/bin/bash", "--login", "-c"]
 ENV USER=mlflow
 ENV HOME=/home/${USER}
 
-ENV UID 1000
-ENV GID 100
-
 RUN adduser --disabled-password \
     --gecos "Non-root user" \
     --home ${HOME} \
-    --uid ${UID} \
-    --gid ${GID} \
     ${USER}
 
 # Set the entry point
 COPY entrypoint.sh /
-RUN chown ${UID}:${GID} /entrypoint.sh && \
+RUN chown ${USER}:${USER} /entrypoint.sh && \
     chmod 0755 /entrypoint.sh
     
 # Activate the user

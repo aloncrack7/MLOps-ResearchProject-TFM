@@ -49,6 +49,8 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     read -p 'Are you using S3/AWS [S](default) or HDFS/GCP [H]?' type_of_server
     if [[ ! -z $type_of_server ]] && ([[ $type_of_server = 'S' ]] || [[ $type_of_server = 's' ]]); then
     	set_up_enviroment_variable "AWS_REGION" "AWS region" $store_config
+        set_up_enviroment_variable "AWS_ACCESS_KEY_ID" "AWS access key id" $store_config
+        set_up_enviroment_variable "AWS_SECRET_ACCESS_KEY" "AWS secret access key" $store_config
     fi
 fi
 

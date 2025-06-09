@@ -15,6 +15,7 @@ from sklearn.linear_model import ElasticNet
 from urllib.parse import urlparse
 import mlflow
 import mlflow.sklearn
+from mlflow.models import infer_signature
 
 import logging
 
@@ -58,8 +59,8 @@ if __name__ == "__main__":
     train, test = train_test_split(data)
 
     # The predicted column is "quality" which is a scalar from [3, 9]
-    train_x = train.drop(["quality"], axis=1)
-    test_x = test.drop(["quality"], axis=1)
+    train_x = train.drop(["quality", "Id"], axis=1)
+    test_x = test.drop(["quality", "Id"], axis=1)
     train_y = train[["quality"]]
     test_y = test[["quality"]]
 
@@ -78,6 +79,7 @@ if __name__ == "__main__":
         print("  RMSE: %s" % rmse)
         print("  MAE: %s" % mae)
         print("  R2: %s" % r2)
+        signature = infer_signature(train_x, train_y)
 
         mlflow.log_param("alpha", alpha)
         mlflow.log_param("l1_ratio", l1_ratio)
@@ -95,6 +97,6 @@ if __name__ == "__main__":
             # There are other ways to use the Model Registry, which depends on the use case,
             # please refer to the doc for more information:
             # https://mlflow.org/docs/latest/model-registry.html#api-workflow
-            mlflow.sklearn.log_model(lr, "model", registered_model_name="ElasticnetWineModel")
+            mlflow.sklearn.log_model(lr, "model", registered_model_name="ElasticnetWineModel", signature=signature)
         else:
             mlflow.sklearn.log_model(lr, "model")
