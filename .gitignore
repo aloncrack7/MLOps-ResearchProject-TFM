@@ -2,3 +2,6 @@ tmp
 .tmp
 **/.env
 **/.venv
+backups
+logs
+*.db

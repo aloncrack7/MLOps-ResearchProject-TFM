@@ -39,6 +39,8 @@ services:
 
     volumes:
       - mlrunsvol:/var/lib/postgresql/data:rw
+      - ./backups:/tmp/backups
+      - ./containers/postgres/make_backup.sh:/root/make_backup.sh
 
     networks:
       - backend
