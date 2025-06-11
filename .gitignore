@@ -1,6 +1,6 @@
 tmp
 .tmp
-**/.env
+**/*.env
 **/.venv
 backups
 logs
