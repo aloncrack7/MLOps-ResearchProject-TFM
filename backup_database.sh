@@ -34,6 +34,7 @@ fi
 
 cd remote_logs
 . remote_logs/bin/activate
+echo $msg
 python send_logs.py $msg
 deactivate
 

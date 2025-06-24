@@ -7,6 +7,8 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
     CallbackQueryHandler,
+    MessageHandler,
+    filters,
 )
 import sqlite3
 from contextlib import closing
@@ -31,7 +33,7 @@ def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, use
         with conn:
             # 1. Insert user if not exists
             conn.execute("""
-                INSERT OR IGNORE INTO users (user_id, email_adress)
+                INSERT OR IGNORE INTO users (user_id, email_address)
                 VALUES (?, ?)
             """, (user_telegram_id, email_address))
 
@@ -43,13 +45,20 @@ def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, use
                 raise ValueError("User not found after insert.")
             user_id = user_row[0]
 
+            if uses_email:
+                conn.execute("""
+                    UPDATE users 
+                    SET email_address=?
+                    WHERE id=?
+                """, (email_address, user_id))
+
             # 3. Get service_id
             service_row = conn.execute("""
                 SELECT id FROM services WHERE service_name = ?
             """, (service_name,)).fetchone()
             if not service_row:
                 raise ValueError("Service not found after insert.")
-            service_id = service_row[0]
+            service_id = service_row[0]      
 
             (status_row) = conn.execute(f"""
                 SELECT user_id, service_id 
@@ -60,6 +69,17 @@ def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, use
                 uses_telegram = status_row[0] if uses_telegram==0 else uses_telegram
                 uses_email = status_row[1] if uses_email==0 else uses_email
 
+                conn.execute("""    
+                    UPDATE subcriptions
+                    SET uses_telegram= ?, uses_email= ?
+                    WHERE user_id = ? AND service_id = ?
+                """, (uses_telegram, uses_email, user_id, service_id))
+            else:
+                conn.execute("""    
+                    INSERT INTO subcriptions (user_id, service_id, uses_telegram, uses_email)
+                    VALUES (?, ?, ?, ?)
+                             """, (user_id, service_id, uses_telegram, uses_email))
+
             # 4. Insert or update subscription
             conn.execute("""
                 INSERT INTO subcriptions (user_id, service_id, uses_telegram, uses_email)
@@ -68,6 +88,8 @@ def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, use
                     uses_telegram=excluded.uses_telegram,
                     uses_email=excluded.uses_email
             """, (user_id, service_id, uses_telegram, uses_email))
+
+            return True
 
 
 def _unsubscribe(user_telegram_id, service_name, unsubscribe_telegram=False, unsubscribe_email=False):
@@ -211,11 +233,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uses_telegram = 1 if platform in ['telegram', 'both'] else 0
         uses_email = 1 if platform in ['email', 'both'] else 0
 
-        _subscribe(user_id, None, service, uses_telegram, uses_email)
-        await query.edit_message_text(
-            f"✅ Subscribed to *{service}* via *{platform}*.",
-            parse_mode="Markdown"
-        )
+        if uses_email:
+            context.user_data["pending_subscription"] = {
+                "user_id": user_id,
+                "service": service,
+                "uses_telegram": uses_telegram,
+                "uses_email": uses_email
+            }
+            await query.edit_message_text("📧 Please send your email address to complete the subscription.")
+        else:
+            _subscribe(user_id, None, service, uses_telegram, uses_email)
+            await query.edit_message_text(
+                f"✅ Subscribed to *{service}* via *{platform}*.",
+                parse_mode="Markdown"
+            )
+
         return
 
     # Unsubscribe flow
@@ -250,6 +282,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("❌ Could not find your subscription to update.")
         return
+    
+async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pending = context.user_data.get("pending_subscription")
+    if not pending:
+        return  # Not in a state expecting email
+
+    email = update.message.text.strip()
+    if "@" not in email or "." not in email:
+        await update.message.reply_text("❌ That doesn't look like a valid email address. Try again.")
+        return
+
+    print(f"Received email: {email} for user {pending['user_id']}")
+    _subscribe(
+        pending["user_id"],
+        email,
+        pending["service"],
+        pending["uses_telegram"],
+        pending["uses_email"]
+    )
+    await update.message.reply_text(
+        f"✅ Subscribed to *{pending['service']}* using *email: {email}*.",
+        parse_mode="Markdown"
+    )
+    context.user_data["pending_subscription"] = None
 
 # Main entrypoint
 def main():
@@ -260,6 +316,7 @@ def main():
     app.add_handler(CommandHandler("subscribe", subscribe_command))
     app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_email))
 
     print("Bot is running")
     app.run_polling()

@@ -1,7 +1,7 @@
 CREATE TABLE users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT UNIQUE,
-    email_adress TEXT
+    email_address TEXT
 );
 
 CREATE TABLE services(

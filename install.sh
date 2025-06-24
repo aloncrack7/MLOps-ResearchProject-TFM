@@ -65,7 +65,7 @@ function set_up_backup(){
 
         if [[ $backup_freq_is_correct = true ]] && [[ $option_back -ne 0 ]]; then
             crontab -l 2>/dev/null | grep -v "$(pwd)/backup_database.sh" | crontab -
-            backup_command="$backup_freq $(pwd)/backup_database.sh $(pwd) >> $(pwd)/logs/backups.log" 2>&1
+            backup_command="$backup_freq $(pwd)/backup_database.sh $(pwd) >> $(pwd)/logs/backups.log 2>&1" 
             (crontab -l 2>/dev/null; echo "$backup_command") | crontab -
         fi
     done
@@ -169,6 +169,9 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "TELEGRAM_TOKEN" "Telegram token" $store_config true "./remote_logs/remote_logs.env"
     set_up_enviroment_variable "TELEGRAM_TOKEN_BACKUP_NOTIFICATIONS" "Telegram token backup notifications" $store_config true "./remote_logs/remote_logs.env" 
     set_up_enviroment_variable "TELEGRAM_BACKUP_NOTIFICATIONS_ID" "Telegram bot id for backup_notifications" $store_config false "./remote_logs/remote_logs.env" 
+
+    set_up_enviroment_variable "EMAIL_SENDER_ADDRESS" "Email sender address" $store_config false "./remote_logs/remote_logs.env"
+    set_up_enviroment_variable "EMAIL_SENDER_TOEKN" "Email sender token" $store_config true "./remote_logs/remote_logs.env"
 fi
 
 docker compose up -d
