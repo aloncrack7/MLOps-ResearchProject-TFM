@@ -1,7 +1,10 @@
 name: mlflow
 services:
   mlflow:
-    build: ./containers/mlflow
+    build: 
+      context: ./containers/mlflow
+      args:
+        - MLFLOW_VERSION=${MLFLOW_VERSION}
     container_name: mlflow
     env_file: 
       - .env

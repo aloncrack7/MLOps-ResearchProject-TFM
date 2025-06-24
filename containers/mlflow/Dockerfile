@@ -51,9 +51,10 @@ RUN conda update --name base --channel defaults conda && \
     conda create -n $ENV_PREFIX && \
     conda clean --all --yes
 
+ARG MLFLOW_VERSION
 RUN conda activate ${ENV_PREFIX} && \
     python3 -m pip install --upgrade pip && \
-    pip install mlflow psycopg2-binary boto3
+    pip install mlflow==${MLFLOW_VERSION} psycopg2-binary boto3
 
 ENTRYPOINT ["/entrypoint.sh"]
 EXPOSE 5000

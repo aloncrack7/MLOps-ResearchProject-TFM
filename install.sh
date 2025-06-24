@@ -152,6 +152,7 @@ read -p "Do you want to make changes in the .env file? (y/N): " change_env
 
 if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]); then
     read -p "Do you want to store the configuration in .env file? (y/N): " store_config
+    set_up_enviroment_variable "MLFLOW_VERSION" "mlflow version" $store_config false .env
     set_up_enviroment_variable "MLFLOW_DOMAIN" "mlflow domain" $store_config false .env
     set_up_enviroment_variable "STATUS_DOMAIN" "status doamin" $store_config false .env
     set_up_enviroment_variable "POSTGRES_PASSWORD" "postgres password" $store_config true .env
@@ -174,4 +175,4 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "EMAIL_SENDER_TOEKN" "Email sender token" $store_config true "./remote_logs/remote_logs.env"
 fi
 
-docker compose up -d
+docker compose up -d --build
