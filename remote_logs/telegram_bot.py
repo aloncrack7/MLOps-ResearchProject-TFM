@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 user_states = {}
 
 def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, uses_email):
+    print(f"Subscribing user {user_telegram_id} to service {service_name} with email {email_address}, "
+          f"uses_telegram={uses_telegram}, uses_email={uses_email}")
     with closing(sqlite3.connect("users.db")) as conn:
         with conn:
             # 1. Insert user if not exists
@@ -180,7 +182,8 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Let's set up your subscription. Select a service:",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')]
+            [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')],
+            [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')]
         ])
     )
 
@@ -188,7 +191,8 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "Select the service you want to unsubscribe from:",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Backup", callback_data='unsub_service_Backup')]
+            [InlineKeyboardButton("Backup", callback_data='unsub_service_Backup')],
+            [InlineKeyboardButton("Version Updates", callback_data='unsub_service_VersionUpdates')]
         ])
     )
 
@@ -209,6 +213,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Which service do you want to subscribe to?",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')],
+                [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')]
             ])
         )
         return
@@ -242,6 +247,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             await query.edit_message_text("📧 Please send your email address to complete the subscription.")
         else:
+            if service=='versionupdates':
+                service = 'versions'
+
             _subscribe(user_id, None, service, uses_telegram, uses_email)
             await query.edit_message_text(
                 f"✅ Subscribed to *{service}* via *{platform}*.",
@@ -294,15 +302,18 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     print(f"Received email: {email} for user {pending['user_id']}")
+    service = pending["service"].lower()
+    if service == 'versionupdates':
+        service = 'versions'
     _subscribe(
         pending["user_id"],
         email,
-        pending["service"],
+        service,
         pending["uses_telegram"],
         pending["uses_email"]
     )
     await update.message.reply_text(
-        f"✅ Subscribed to *{pending['service']}* using *email: {email}*.",
+        f"✅ Subscribed to *{service}* using *email: {email}*.",
         parse_mode="Markdown"
     )
     context.user_data["pending_subscription"] = None

@@ -19,4 +19,4 @@ CREATE TABLE subcriptions(
     UNIQUE (user_id, service_id)
 );
 
-INSERT INTO services (service_name) VALUES ("backup");
+INSERT INTO services (service_name) VALUES ("backup", "versions");
