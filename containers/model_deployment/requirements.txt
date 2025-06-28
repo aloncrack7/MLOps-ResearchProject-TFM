@@ -1,0 +1,4 @@
+mlflow
+fastapi
+boto3
+httpx

@@ -26,6 +26,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+    depends_on:
+      - postgresql
+
   postgresql:
     image: postgres:16.3
     container_name: postgres
@@ -44,6 +47,7 @@ services:
       - mlrunsvol:/var/lib/postgresql/data:rw
       - ./backups:/tmp/backups
       - ./containers/postgres/make_backup.sh:/root/make_backup.sh
+      - ./containers/postgres/restore_backups.sh:/root/restore_backups.sh
 
     networks:
       - backend
@@ -60,11 +64,13 @@ services:
       - ./containers/nginx/nginx.conf:/etc/nginx/nginx.conf:rw
       - ./containers/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:rw
       - ./.tmp/.htpasswd:/etc/nginx/.htpasswd
-    depends_on:
-      - mlflow
     networks:
       - backend
       - frontend
+    depends_on:
+      - mlflow
+      - uptime-kuma
+      - model_deployment
 
   uptime-kuma:
     restart: always
@@ -78,6 +84,47 @@ services:
       - backend
       - frontend
 
+  model_deployment:
+    build:
+      context: ./containers/model_deployment
+      dockerfile: Dockerfile
+    container_name: model_deployment
+    env_file:
+      - .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - 8000:8000
+      - "8001-8100:8001-8100"  # Range for dynamically deployed models
+    volumes:
+      - ./containers/model_deployment/deployments.py:/app/deployments.py:rw
+      - ./containers/model_deployment/requirements.txt:/app/requirements.txt:rw
+      - ./containers/model_deployment/entrypoint.sh:/app/entrypoint.sh:rw
+      - ./containers/model_deployment/model_deployment.db:/app/model_deployment.db:rw
+    command: >
+      /app/entrypoint.sh
+    networks:
+      - backend
+    depends_on:
+      - mlflow
+
+  frontend:
+    build:
+      context: ./containers/frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - 3000:3000
+    environment:
+      - REACT_APP_API_URL=/api
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - model_deployment
 
 networks:
   backend:

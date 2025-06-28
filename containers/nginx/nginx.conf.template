@@ -24,3 +24,73 @@ server {
         proxy_set_header    Host $host;
     }
 }
+
+server {
+    listen 80;
+    server_name api.${MLFLOW_DOMAIN};
+
+    location / {
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass          http://model_deployment:8000;
+        proxy_set_header    X-Forwarded-For $remote_addr;
+        proxy_set_header    Host $host;
+    }
+}
+
+server {
+    listen 80;
+    server_name models.${MLFLOW_DOMAIN};
+
+    # Route to model deployment API
+    location /api/ {
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass          http://model_deployment:8000;
+        proxy_set_header    X-Forwarded-For $remote_addr;
+        proxy_set_header    Host $host;
+    }
+
+    # Dynamic routing for deployed models
+    # This will be handled by the model deployment service
+    location / {
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        # Forward to model deployment service which will handle the routing
+        proxy_pass          http://model_deployment:8000;
+        proxy_set_header    X-Forwarded-For $remote_addr;
+        proxy_set_header    Host $host;
+        proxy_set_header    X-Original-URI $request_uri;
+    }
+}
+
+server {
+    listen 80;
+    server_name control.${MLFLOW_DOMAIN};
+
+    location / {
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass          http://frontend:3000;
+        proxy_set_header    X-Forwarded-For $remote_addr;
+        proxy_set_header    Host $host;
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+    }
+
+    # API proxy for frontend
+    location /api/ {
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass          http://model_deployment:8000/;
+        proxy_set_header    Host $host;
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+    }
+}

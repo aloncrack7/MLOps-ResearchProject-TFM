@@ -179,4 +179,4 @@ crontab -l 2>/dev/null | grep -v "$(pwd)/mlflow_updates/handle_updates.sh" | cro
 backup_command="0 7 * * * $(pwd)/mlflow_updates/handle_updates.sh $(pwd)/mlflow_updates >> $(pwd)/logs/versions.log 2>&1" 
 (crontab -l 2>/dev/null; echo "$backup_command") | crontab -
 
-# docker compose up -d --build
+docker compose up -d --build
