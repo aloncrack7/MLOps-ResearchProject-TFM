@@ -96,9 +96,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - START_PORT=${START_PORT}
+      - END_PORT=${END_PORT}
     ports:
       - 8000:8000
-      - "8001-8100:8001-8100"  # Range for dynamically deployed models
+      - "${START_PORT}-${END_PORT}:${START_PORT}-${END_PORT}"  # Range for dynamically deployed models
     volumes:
       - ./containers/model_deployment/deployments.py:/app/deployments.py:rw
       - ./containers/model_deployment/requirements.txt:/app/requirements.txt:rw

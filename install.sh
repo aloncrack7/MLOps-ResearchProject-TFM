@@ -157,6 +157,8 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "STATUS_DOMAIN" "status doamin" $store_config false .env
     set_up_enviroment_variable "POSTGRES_PASSWORD" "postgres password" $store_config true .env
     set_up_enviroment_variable "DEFAULT_ARTIFACT_ROOT" "artifact location" $store_config false .env
+    set_up_enviroment_variable "START_PORT" "start port" $store_config false .env
+    set_up_enviroment_variable "END_PORT" "end port" $store_config false .env
 
     read -p 'Are you using S3/AWS [S](default) or HDFS/GCP [H]? ' type_of_server
     if [[ -z $type_of_server ]] || [[ $type_of_server = 'S' ]] || [[ $type_of_server = 's' ]]; then
@@ -179,4 +181,12 @@ crontab -l 2>/dev/null | grep -v "$(pwd)/mlflow_updates/handle_updates.sh" | cro
 backup_command="0 7 * * * $(pwd)/mlflow_updates/handle_updates.sh $(pwd)/mlflow_updates >> $(pwd)/logs/versions.log 2>&1" 
 (crontab -l 2>/dev/null; echo "$backup_command") | crontab -
 
-docker compose up -d --build
+read -p "Do you want to start the containers? (y/N): " start_containers
+if [[ ! -z $start_containers ]] && ([[ $start_containers = 'y' ]] || [[ $start_containers = 'Y' ]]); then
+    read -p "Do you want to build the containers? (y/N): " build_containers
+    if [[ ! -z $build_containers ]] && ([[ $build_containers = 'y' ]] || [[ $build_containers = 'Y' ]]); then
+        docker compose up -d --build
+    else
+        docker compose up -d
+    fi
+fi
