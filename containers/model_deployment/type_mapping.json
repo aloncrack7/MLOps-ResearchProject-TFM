@@ -1,0 +1,62 @@
+{
+  "python_to_mlflow_types": {
+    "str": {
+      "mlflow_type": "1",
+      "example": "hello world",
+      "notes": "Standard Python string"
+    },
+    "int": {
+      "mlflow_type": "2",
+      "example": 42,
+      "notes": "64-bit integers"
+    },
+    "numpy.int32": {
+      "mlflow_type": "3",
+      "example": "np.int32(42)",
+      "notes": "32-bit integers"
+    },
+    "float": {
+      "mlflow_type": "4",
+      "example": 3.14159,
+      "notes": "64-bit floats"
+    },
+    "numpy.float32": {
+      "mlflow_type": "5",
+      "example": "np.float32(3.14)",
+      "notes": "32-bit floats"
+    },
+    "bool": {
+      "mlflow_type": "6",
+      "example": true,
+      "notes": "Standard Python boolean"
+    },
+    "numpy.bool_": {
+      "mlflow_type": "7",
+      "example": "np.bool_(True)",
+      "notes": "NumPy boolean"
+    },
+    "datetime": {
+      "mlflow_type": "8",
+      "example": "pd.Timestamp('2023-01-01')",
+      "notes": "Pandas timestamp"
+    },
+    "bytes": {
+      "mlflow_type": "9",
+      "example": "b'binary data'",
+      "notes": "Standard Python bytes"
+    },
+    "bytearray": {
+      "mlflow_type": "10",
+      "example": "bytearray(b'data')",
+      "notes": "Python bytearray"
+    },
+    "numpy.bytes_": {
+      "mlflow_type": "11",
+      "example": "np.bytes_(b'data')",
+      "notes": "NumPy bytes"
+    }
+  },
+  "description": "Mapping of Python types to MLflow types with examples and notes",
+  "usage": "This mapping can be used to understand how Python types are represented in MLflow model signatures",
+  "version": "1.0"
+} 
