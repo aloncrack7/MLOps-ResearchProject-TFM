@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import ModelManagement from './pages/ModelManagement';
 import DeployedModels from './pages/DeployedModels';
 import ModelTesting from './pages/ModelTesting';
+import DownloadDataset from './pages/DownloadDataset';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,6 +36,7 @@ function App() {
               <Route path="/models" element={<ModelManagement />} />
               <Route path="/deployed" element={<DeployedModels />} />
               <Route path="/testing" element={<ModelTesting />} />
+              <Route path="/download" element={<DownloadDataset />} />
             </Routes>
           </Container>
         </Box>

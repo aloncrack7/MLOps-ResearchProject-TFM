@@ -17,6 +17,7 @@ import {
   PlayArrow as DeployedIcon,
   Science as TestingIcon,
   Menu as MenuIcon,
+  GetApp as GetAppIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -26,6 +27,7 @@ const menuItems = [
   { text: 'Model Management', icon: <ModelIcon />, path: '/models' },
   { text: 'Deployed Models', icon: <DeployedIcon />, path: '/deployed' },
   { text: 'Model Testing', icon: <TestingIcon />, path: '/testing' },
+  { text: 'Download Dataset', icon: <GetAppIcon />, path: '/download' },
 ];
 
 function Navigation({ open, onToggle }) {

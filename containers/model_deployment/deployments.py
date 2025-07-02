@@ -13,6 +13,10 @@ import logging
 from pymongo import MongoClient
 import json
 import base64
+from bson import ObjectId
+import pandas as pd
+from fastapi.responses import StreamingResponse
+import io
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -424,6 +428,82 @@ async def call_model(model_name: str, version: str, request: Request):
     logger.info(f"Calling model {model_name}-{version}")
     return await proxy_to_model(request, f"/{model_name}-{version}/invocations")
 
+def _clean_dataset(dataset):
+    """
+    Clean the dataset: convert cursor to list and ObjectId to str, then extract instances as rows.
+    Returns a list of dicts (each instance as a row).
+    """
+    data = []
+    for doc in dataset:
+        doc = dict(doc)
+        # Convert ObjectId to string
+        if '_id' in doc and isinstance(doc['_id'], ObjectId):
+            doc['_id'] = str(doc['_id'])
+        data.append(doc)
+
+    logger.info(f"Data has been converted to list")
+
+    results = []
+    for doc in data:
+        logger.info(f"Doc: {doc}")
+        data_field = doc.get("data", {})
+        logger.info(f"Data: {data_field}")
+        instances = data_field.get("instances", [])
+        logger.info(f"Instances: {instances}")
+        for instance in instances:
+            # If instance is a dict of features, just append it
+            # If instance is a dict with a "data" key, use instance["data"]["features"]
+            if isinstance(instance, dict):
+                if "data" in instance and "features" in instance["data"]:
+                    results.append(instance["data"]["features"])
+                else:
+                    results.append(instance)
+            else:
+                results.append(instance)
+
+    logger.info(f"Results has been converted to list")
+
+    return results  # This is now JSON serializable
+
+@app.get("/model/{model_name}-{version}/dataset")
+async def get_dataset(model_name: str, version: str, request: Request):
+    """
+    Get a dataset from the model usage as a CSV file.
+    """
+    try:
+        mongodb_uri = os.environ.get('MONGODB_URI')
+        mongodb_user = os.environ.get('MONGODB_USER')
+        mongodb_password = os.environ.get('MONGODB_PASSWORD')
+        mongodb_database = os.environ.get('MONGODB_DATABASE', 'mlflow')
+
+        # If we have credentials, use them
+        if mongodb_user and mongodb_password:
+            # Build the connection string with authentication
+            mongodb_uri = f"mongodb://{mongodb_user}:{mongodb_password}@mongodb:27017/{mongodb_database}?authSource=admin"
+
+        client = MongoClient(mongodb_uri)   
+        db = client[mongodb_database]
+
+        # Extract query parameters from the request
+        query_params = dict(request.query_params)
+        start_date = query_params.get('start_date')
+        end_date = query_params.get('end_date')
+
+        if start_date is None or end_date is None:
+            dataset = db.inputed_data.find({"model_name": model_name, "version": version})
+        else:
+            dataset = db.inputed_data.find({"model_name": model_name, "version": version, "timestamp": {"$gte": start_date, "$lte": end_date}})
+        rows = _clean_dataset(dataset)
+        if not rows:
+            return Response(content="", media_type="text/csv")
+        df = pd.DataFrame(rows)
+        stream = io.StringIO()
+        df.to_csv(stream, index=False)
+        stream.seek(0)
+        return StreamingResponse(stream, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={model_name}-{version}-dataset.csv"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 def _save_inputed_data_to_mongo(model_name, version, data):
     """
     Save the inputed data to MongoDB.
@@ -503,7 +583,9 @@ async def proxy_to_model(request: Request, path: str):
         logger.info(f"Proxy response headers: {response.headers}")
 
         if request.method == "POST" and path.endswith("/invocations"):
-            _save_inputed_data_to_mongo(model_key, model_info["version"], body)
+            model_name = model_key.split("-")[0]
+            model_version = model_key.split("-")[1]
+            _save_inputed_data_to_mongo(model_name, model_version, body)
         
         return Response(
             content=response.content,
