@@ -10,6 +10,9 @@ import re
 import sqlite3
 import time
 import logging
+from pymongo import MongoClient
+import json
+import base64
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -85,11 +88,39 @@ def _load_deployed_models():
         else:
             raise e
 
+def _check_database_mongo():
+    try:
+        # Build connection string with authentication
+        mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/')
+        mongodb_user = os.environ.get('MONGODB_USER')
+        mongodb_password = os.environ.get('MONGODB_PASSWORD')
+        mongodb_database = os.environ.get('MONGODB_DATABASE', 'mlflow')
+        
+        # If we have credentials, use them
+        if mongodb_user and mongodb_password:
+            # Replace the URI to include authentication
+            if mongodb_uri.startswith('mongodb://'):
+                mongodb_uri = f"mongodb://{mongodb_user}:{mongodb_password}@mongodb:27017/{mongodb_database}?authSource=admin"
+            else:
+                mongodb_uri = f"mongodb://{mongodb_user}:{mongodb_password}@mongodb:27017/{mongodb_database}?authSource=admin"
+        
+        client = MongoClient(mongodb_uri)
+        db = client[mongodb_database]
+        
+        # Test the connection by listing collections
+        db.list_collection_names()
+        client.close()
+
+        logger.info(f"MongoDB connection successful")
+    except Exception as e:
+        logger.error(f"MongoDB connection failed: {e}")
+
 # Initialize the database and load deployed models
 _init_database()
 app = FastAPI()
 client = MlflowClient()
 deployed_models = _load_deployed_models()
+_check_database_mongo()
 
 def _reload_deployed_models():
     for model in deployed_models:
@@ -393,6 +424,44 @@ async def call_model(model_name: str, version: str, request: Request):
     logger.info(f"Calling model {model_name}-{version}")
     return await proxy_to_model(request, f"/{model_name}-{version}/invocations")
 
+def _save_inputed_data_to_mongo(model_name, version, data):
+    """
+    Save the inputed data to MongoDB.
+    """
+    try:
+        mongodb_uri = os.environ.get('MONGODB_URI')
+        mongodb_user = os.environ.get('MONGODB_USER')
+        mongodb_password = os.environ.get('MONGODB_PASSWORD')
+        mongodb_database = os.environ.get('MONGODB_DATABASE', 'mlflow')
+        
+        # If we have credentials, use them
+        if mongodb_user and mongodb_password:
+            # Build the connection string with authentication
+            mongodb_uri = f"mongodb://{mongodb_user}:{mongodb_password}@mongodb:27017/{mongodb_database}?authSource=admin"
+        
+        client = MongoClient(mongodb_uri)
+        db = client[mongodb_database]
+
+        # Decode the data from bytes to JSON
+        try:
+            decoded_data = json.loads(data.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.warning(f"Could not decode data as JSON, storing as string: {e}")
+            decoded_data = data.decode('utf-8', errors='ignore')
+
+        # Save the decoded data to MongoDB
+        result = db.inputed_data.insert_one({
+            "model_name": model_name,
+            "version": version,
+            "data": decoded_data,
+            "timestamp": time.time()
+        })
+        
+        logger.info(f"Data saved to MongoDB with ID: {result.inserted_id}")
+    except Exception as e:
+        logger.error(f"Error saving inputed data to MongoDB: {e}")
+
+
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_model(request: Request, path: str):
     """
@@ -432,6 +501,9 @@ async def proxy_to_model(request: Request, path: str):
         logger.info(f"Proxy response status: {response.status_code}")
         logger.info(f"Proxy response content: {response.content}")
         logger.info(f"Proxy response headers: {response.headers}")
+
+        if request.method == "POST" and path.endswith("/invocations"):
+            _save_inputed_data_to_mongo(model_key, model_info["version"], body)
         
         return Response(
             content=response.content,

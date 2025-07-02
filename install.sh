@@ -175,6 +175,9 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
 
     set_up_enviroment_variable "EMAIL_SENDER_ADDRESS" "Email sender address" $store_config false "./remote_logs/remote_logs.env"
     set_up_enviroment_variable "EMAIL_SENDER_TOEKN" "Email sender token" $store_config true "./remote_logs/remote_logs.env"
+
+    set_up_enviroment_variable "MONGODB_USER" "MongoDB user" $store_config true .env
+    set_up_enviroment_variable "MONGODB_PASSWORD" "MongoDB password" $store_config true .env
 fi
 
 crontab -l 2>/dev/null | grep -v "$(pwd)/mlflow_updates/handle_updates.sh" | crontab -

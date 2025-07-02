@@ -71,6 +71,7 @@ services:
       - mlflow
       - uptime-kuma
       - model_deployment
+      - frontend
 
   uptime-kuma:
     restart: always
@@ -98,6 +99,10 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - START_PORT=${START_PORT}
       - END_PORT=${END_PORT}
+      - MONGODB_DATABASE=mlflow
+      - MONGODB_USER=${MONGODB_USER}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - MONGODB_URI=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/${MONGODB_DATABASE}?authSource=admin
     ports:
       - 8000:8000
       - "${START_PORT}-${END_PORT}:${START_PORT}-${END_PORT}"  # Range for dynamically deployed models
@@ -112,6 +117,7 @@ services:
       - backend
     depends_on:
       - mlflow
+      - mongodb
 
   frontend:
     build:
@@ -128,6 +134,23 @@ services:
     depends_on:
       - model_deployment
 
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    env_file:
+      - .env
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+      - MONGO_INITDB_DATABASE=mlflow
+    ports:
+      - 27017:27017
+    volumes:
+      - mongodb:/data/db
+      - ./containers/mongodb/init.js:/docker-entrypoint-initdb.d/init.js
+    networks:
+      - backend
+
 networks:
   backend:
   frontend:
@@ -136,3 +159,4 @@ volumes:
   mlflow-users:  
   uptime-kuma:
   mlrunsvol:
+  mongodb:
