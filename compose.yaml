@@ -151,6 +151,25 @@ services:
     networks:
       - backend
 
+  remote_logs:
+    build: ./containers/remote_logs
+    container_name: remote_logs
+    env_file:
+      - .env
+    networks:
+      - backend
+    depends_on:
+      - postgresql
+      - mlflow
+      - model_deployment
+      - frontend
+      - uptime-kuma
+    volumes:
+      - ./containers/remote_logs/telegram_bot.py:/app/telegram_bot.py:rw
+      - ./containers/remote_logs/send_logs.py:/app/send_logs.py:rw
+      - ./containers/remote_logs/users.db:/app/users.db:rw
+      - ./logs/telegram_bot.log:/app/telegram_bot.log:rw
+
 networks:
   backend:
   frontend:

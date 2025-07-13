@@ -19,7 +19,7 @@ load_dotenv("remote_logs.env")
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
-    filename="../logs/telegram_bot.log",
+    filename="/app/telegram_bot.log",
     filemode="a",
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)

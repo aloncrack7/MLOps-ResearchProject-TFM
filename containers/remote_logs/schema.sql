@@ -1,15 +1,15 @@
-CREATE TABLE users(
+CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT UNIQUE,
     email_address TEXT
 );
 
-CREATE TABLE services(
+CREATE TABLE IF NOT EXISTS services(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     service_name TEXT UNIQUE
 );
 
-CREATE TABLE subcriptions(
+CREATE TABLE IF NOT EXISTS subscriptions(
     user_id INTEGER NOT NULL,
     service_id INTEGER NOT NULL,
     uses_telegram INTEGER,
@@ -19,4 +19,5 @@ CREATE TABLE subcriptions(
     UNIQUE (user_id, service_id)
 );
 
-INSERT INTO services (service_name) VALUES ("backup", "versions");
+INSERT OR IGNORE INTO services (service_name) VALUES ("backup");
+INSERT OR IGNORE INTO services (service_name) VALUES ("versions");

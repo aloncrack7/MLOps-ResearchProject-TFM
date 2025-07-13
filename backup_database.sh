@@ -35,6 +35,6 @@ fi
 cd remote_logs
 . remote_logs/bin/activate
 echo $msg
-python send_logs.py "backup" $msg
+docker exec remote_logs /app/venv/bin/python /app/send_logs.py "backup" $msg
 deactivate
 
