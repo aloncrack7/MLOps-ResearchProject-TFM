@@ -541,6 +541,19 @@ def _save_inputed_data_to_mongo(model_name, version, data):
     except Exception as e:
         logger.error(f"Error saving inputed data to MongoDB: {e}")
 
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint to verify if the service is running.
+    """
+
+    try:
+        response = {
+            "status": "ok",
+        }
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_model(request: Request, path: str):

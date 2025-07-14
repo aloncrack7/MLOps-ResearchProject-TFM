@@ -162,6 +162,26 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "MONGODB_PASSWORD" "MongoDB password" $store_config true .env
 fi
 
+read -p "If this is the first time you are running this script you would need to create a user in Uptime Kuma, do you want to just launch Uptime Kuma? (y/N): " launch_uptime_kuma
+if [[ ! -z $launch_uptime_kuma ]] && ([[ $launch_uptime_kuma = 'y' ]] || [[ $launch_uptime_kuma = 'Y' ]]); then
+    docker compose up -d
+    uptime_kuma_url=$(grep -E "^STATUS_DOMAIN" .env | cut -d '=' -f2)
+    echo "Uptime Kuma is running in http://$uptime_kuma_url, please create a user and then press enter to continue" 
+    read -p "Press enter to continue"
+
+    set_up_enviroment_variable "UPTIME_KUMA_USER" "Uptime kuma user" true false .env
+    set_up_enviroment_variable "UPTIME_KUMA_PASSWORD" "Uptime kuma password" true true .env
+
+    python3 -m venv venv
+    . venv/bin/activate
+    python -m pip install --upgrade pip
+    pip install uptime_kuma_api dotenv
+    deactivate
+
+    rm -rf venv
+    docker compose down
+fi
+
 read -p "Do you want to start the containers? (y/N): " start_containers
 if [[ ! -z $start_containers ]] && ([[ $start_containers = 'y' ]] || [[ $start_containers = 'Y' ]]); then
     read -p "Do you want to build the containers? (y/N): " build_containers
