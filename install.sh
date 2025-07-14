@@ -130,24 +130,6 @@ chmod g+s logs
 touch logs/backups.log
 chmod 0777 logs/backups.log
 
-# Bots
-mkdir -p remote_logs
-cd remote_logs
-if [[ ! -d remote_logs ]]; then
-    python3 -m venv remote_logs
-fi
-. remote_logs/bin/activate
-python3 -m pip install --upgrade pip
-pip install -r requirements.txt
-deactivate
-
-sudo apt install sqlite3
-if [[ ! -f ./remote_logs/users.db ]]; then
-    cat ./remote_logs/schema.sql | sqlite3 ./remote_logs/users.db
-fi
-
-cd ..
-
 read -p "Do you want to make changes in the .env file? (y/N): " change_env
 
 if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]); then
@@ -179,10 +161,6 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "MONGODB_USER" "MongoDB user" $store_config true .env
     set_up_enviroment_variable "MONGODB_PASSWORD" "MongoDB password" $store_config true .env
 fi
-
-crontab -l 2>/dev/null | grep -v "$(pwd)/mlflow_updates/handle_updates.sh" | crontab -
-backup_command="0 7 * * * $(pwd)/mlflow_updates/handle_updates.sh $(pwd)/mlflow_updates >> $(pwd)/logs/versions.log 2>&1" 
-(crontab -l 2>/dev/null; echo "$backup_command") | crontab -
 
 read -p "Do you want to start the containers? (y/N): " start_containers
 if [[ ! -z $start_containers ]] && ([[ $start_containers = 'y' ]] || [[ $start_containers = 'Y' ]]); then

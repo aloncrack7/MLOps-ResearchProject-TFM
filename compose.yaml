@@ -165,9 +165,11 @@ services:
       - frontend
       - uptime-kuma
     volumes:
+      - ./containers/remote_logs/handle_updates.sh:/app/handle_updates.sh:rw
       - ./containers/remote_logs/telegram_bot.py:/app/telegram_bot.py:rw
       - ./containers/remote_logs/send_logs.py:/app/send_logs.py:rw
       - ./containers/remote_logs/users.db:/app/users.db:rw
+      - ./containers/remote_logs/versions.csv:/app/versions.csv:rw
       - ./logs/telegram_bot.log:/app/telegram_bot.log:rw
 
 networks:
