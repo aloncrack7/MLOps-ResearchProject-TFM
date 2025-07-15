@@ -17,6 +17,7 @@ from bson import ObjectId
 import pandas as pd
 from fastapi.responses import StreamingResponse
 import io
+from uptime_kuma_api import UptimeKumaApi, MonitorType
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -147,7 +148,27 @@ def _reload_deployed_models():
                 if os.system(f"lsof -i :{deployed_models[model]['port']}") != 0:
                     print(f"Warning: Model {model} failed to start on port {deployed_models[model]['port']}")
 
+                with UptimeKumaApi('http://uptime-kuma:3001') as api:
+                    uptime_kuma_user = os.getenv("UPTIME_KUMA_USER")
+                    uptime_kuma_password = os.getenv("UPTIME_KUMA_PASSWORD")
+                    api.login(uptime_kuma_user, uptime_kuma_password)
+                    monitor = {
+                        "type": MonitorType.HTTP,
+                        "name": f"{deployed_models[model]['model_name']} version {deployed_models[model]['model_version']}",
+                        "url": f"http://model_deployment:8000/{model}"
+                    }
+
+                    if not _monitor_exists(api, monitor["name"]):
+                        api.add_monitor(**monitor)
+                        logger.info(f"Monitor '{monitor['name']}' registered in Uptime Kuma.")
+                    else:
+                        logger.info(f"Monitor '{monitor['name']}' already exists in Uptime Kuma. Skipping registration.")
+
 _reload_deployed_models()
+
+def _monitor_exists(api, name):
+    monitors = api.get_monitors()
+    return any(m['name'] == name for m in monitors)
 
 @app.get("/get_model_list")
 def get_model_list():
@@ -234,7 +255,23 @@ def deploy(model_name: str, version: str):
             "port": port,
             "run_uuid": run_uuid
         }
-        
+
+        with UptimeKumaApi('http://uptime-kuma:3001') as api:
+            uptime_kuma_user = os.getenv("UPTIME_KUMA_USER")
+            uptime_kuma_password = os.getenv("UPTIME_KUMA_PASSWORD")
+            api.login(uptime_kuma_user, uptime_kuma_password)
+            monitor = {
+                "type": MonitorType.HTTP,
+                "name": f"{model_name} version {version}",
+                "url": f"http://model_deployment:8000/{model_name}-{version}/health"
+            }
+
+            if not _monitor_exists(api, monitor["name"]):
+                api.add_monitor(**monitor)
+                logger.info(f"Monitor '{monitor['name']}' registered in Uptime Kuma.")
+            else:
+                logger.info(f"Monitor '{monitor['name']}' already exists in Uptime Kuma. Skipping registration.")
+
         return {"message": f"Model {model_name} version {version} deployed on port {port}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -267,6 +304,21 @@ def undeploy(model_name_and_version: str):
         
         # Remove from in-memory dictionary
         del deployed_models[model_name_and_version]
+
+        # Remove monitor from Uptime Kuma
+        with UptimeKumaApi('http://uptime-kuma:3001') as api:
+            uptime_kuma_user = os.getenv("UPTIME_KUMA_USER")
+            uptime_kuma_password = os.getenv("UPTIME_KUMA_PASSWORD")
+            api.login(uptime_kuma_user, uptime_kuma_password)
+            monitors = api.get_monitors()
+            monitor_name = f"{model_name_and_version}"
+            for monitor in monitors:
+                if monitor['name'] == monitor_name:
+                    api.delete_monitor(monitor['id'])
+                    logger.info(f"Monitor '{monitor_name}' removed from Uptime Kuma.")
+                    break
+
+        logger.info(f"Model {model_name_and_version} undeployed successfully.")
         
         return {"message": f"Model {model_name_and_version} undeployed"}
     except Exception as e:

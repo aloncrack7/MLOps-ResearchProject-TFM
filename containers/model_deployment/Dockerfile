@@ -16,6 +16,7 @@ COPY schema.sql /app/schema.sql
 RUN sqlite3 /app/model_deployment.db < schema.sql
 
 RUN python3 -m venv venv
-RUN . venv/bin/activate && \
+SHELL ["/bin/bash", "-c"]
+RUN source venv/bin/activate && \
     pip install --upgrade pip && \
     pip install -r requirements.txt

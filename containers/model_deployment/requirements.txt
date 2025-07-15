@@ -3,3 +3,4 @@ fastapi
 boto3
 httpx
 pymongo
+uptime-kuma_api
