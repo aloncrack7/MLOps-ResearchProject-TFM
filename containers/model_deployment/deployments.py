@@ -18,6 +18,7 @@ import pandas as pd
 from fastapi.responses import StreamingResponse
 import io
 from uptime_kuma_api import UptimeKumaApi, MonitorType
+import subprocess
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -130,7 +131,12 @@ _check_database_mongo()
 def _reload_deployed_models():
     for model in deployed_models:
         # Check if the port is actually being used by the model service
-        if os.system(f"nmap -p {deployed_models[model]['port']} localhost") != 0:
+        logger.info(f"Checking if model {model} is running on port {deployed_models[model]['port']}")
+        port_status = subprocess.run(["nmap", "-p", str(deployed_models[model]['port']), "localhost"], capture_output=True, text=True)
+        if port_status.returncode != 0 or "closed" in port_status.stdout:
+            logger.warning(f"Model {model} is not running on port {deployed_models[model]['port']}")
+            # If not running, try to restart it
+            logger.info(f"Attempting to restart model {model} on port {deployed_models[model]['port']}")
             # Model is not running, restart it
             env_vars = {
                 'VIRTUAL_ENV': '/app/venv',
@@ -145,8 +151,11 @@ def _reload_deployed_models():
             else:
                 # Wait a moment and verify it started
                 time.sleep(2)
-                if os.system(f"lsof -i :{deployed_models[model]['port']}") != 0:
-                    print(f"Warning: Model {model} failed to start on port {deployed_models[model]['port']}")
+                port_status = subprocess.run(["nmap", "-p", str(deployed_models[model]['port']), "localhost"], capture_output=True, text=True)
+                if port_status.returncode != 0 or "closed" in port_status.stdout:
+                    logger.error(f"Failed to restart model {model} on port {deployed_models[model]['port']}")
+                else:
+                    logger.info(f"Model {model} restarted successfully on port {deployed_models[model]['port']}")
 
                 with UptimeKumaApi('http://uptime-kuma:3001') as api:
                     uptime_kuma_user = os.getenv("UPTIME_KUMA_USER")
@@ -235,7 +244,8 @@ def deploy(model_name: str, version: str):
         time.sleep(2)
         
         # Check if the port is actually being used
-        if os.system(f"nmap -p {port} localhost") != 0:
+        port_status = subprocess.run(["nmap", "-p", str(port), "localhost"], capture_output=True, text=True)
+        if port_status.returncode != 0 or "closed" in port_status.stdout:
             raise HTTPException(status_code=500, detail=f"Model service failed to start on port {port} for {model_name} version {version}")
         
         # Save to database
