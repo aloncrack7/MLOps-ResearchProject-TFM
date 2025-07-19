@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
 # Install python3 and pip and other dependencies
 RUN apt-get update && \

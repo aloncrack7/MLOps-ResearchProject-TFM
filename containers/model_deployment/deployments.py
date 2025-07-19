@@ -149,13 +149,18 @@ def _reload_deployed_models():
             if result != 0:
                 print(f"Warning: Failed to restart model {model} on port {deployed_models[model]['port']}")
             else:
-                # Wait a moment and verify it started
-                time.sleep(2)
-                port_status = subprocess.run(["nmap", "-p", str(deployed_models[model]['port']), "localhost"], capture_output=True, text=True)
-                if port_status.returncode != 0 or "closed" in port_status.stdout:
-                    logger.error(f"Failed to restart model {model} on port {deployed_models[model]['port']}")
-                else:
-                    logger.info(f"Model {model} restarted successfully on port {deployed_models[model]['port']}")
+                retries = 60
+                running = False
+                while retries>0 and not running:
+                    port_status = subprocess.run(["nmap", "-p", str(deployed_models[model]['port']), "localhost"], capture_output=True, text=True)
+                    if port_status.returncode == 0 and "open" in port_status.stdout:
+                        logger.info(f"Model {model} restarted successfully on port {deployed_models[model]['port']}")
+                        running = True
+                    retries -= 1
+                    time.sleep(1)
+
+                if retries == 0:
+                    logger.error(f"Failed to restart model {model} on port {deployed_models[model]['port']} after multiple attempts")                
 
                 with UptimeKumaApi('http://uptime-kuma:3001') as api:
                     uptime_kuma_user = os.getenv("UPTIME_KUMA_USER")
@@ -201,6 +206,35 @@ def get_model_version_list(model_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/get_info/{model_name}/{version}")
+def get_model_python_version(model_name: str, version: str):
+    """
+    Get the Python version used to train a specific model version.
+    """
+    try:
+        model_versions = client.search_model_versions(f"name='{model_name}'")
+        run_uuid = None
+        for mv in model_versions:
+            if str(mv.version) == version:
+                run_uuid = mv.run_id
+                break
+        
+        if run_uuid is None:
+            raise HTTPException(status_code=404, detail=f"Model version {version} not found for model {model_name}")
+
+        model_info = get_model_info(f"runs:/{run_uuid}/model")
+        client.download_artifacts(run_uuid, "model/requirements.txt", dst_path="/tmp")
+
+        with open("/tmp/requirements.txt", "r") as f:
+            requirements = f.readlines()
+
+        os.system("rm /tmp/requirements.txt")
+        
+        # Get model info which contains metadata including Python version
+        return requirements
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving Python version for model {model_name} version {version}: {str(e)}")
+
 @app.post("/deploy/{model_name}/{version}")
 def deploy(model_name: str, version: str):
     """
@@ -220,11 +254,25 @@ def deploy(model_name: str, version: str):
         
         port = _get_free_port()
 
+        logger.info(f"Deploying model {model_name} version {version} on port {port}")
+        client.download_artifacts(run_uuid, "model/requirements.txt", dst_path=f"/app/{model_name}-{version}")
+        logger.info(f"Downloaded requirements.txt for model {model_name} version {version}")
+
+        try:
+            with open(f"/app/{model_name}-{version}/requirements.txt", "a+") as f:
+                f.write("\nboto3\nhdfs\n")
+                f.seek(0)
+                requirements = f.readlines()
+                logger.info(f"Requirements for {model_name} version {version}: {requirements}")
+        except Exception as e:
+            raise HTTPException(status_code=504, detail=f"Requirements file not found for model {model_name} version {version}, {str(e)}")
+
+        logger.info(f"Starting deployment for model {model_name} version {version} on port {port}")
         # Create the virtual environment
-        os.system(f"""mkdir -p /app/{model_name}-{version} && 
-            python -m venv /app/{model_name}-{version}/venv && 
-            source /app/{model_name}-{version}/venv/bin/activate && 
-            pip install mlflow""")
+        os.system(f"""mkdir -p /app/{model_name}-{version} && \
+            python -m venv /app/{model_name}-{version}/venv && \
+            bash -c 'source /app/{model_name}-{version}/venv/bin/activate && pip install -r /app/{model_name}-{version}/requirements.txt'""")
+        logger.info(f"Virtual environment created for model {model_name} version {version}")
         
         # Start the model service and check if it actually started
         # Use the existing virtual environment and set MLflow to not create new environments
@@ -236,15 +284,30 @@ def deploy(model_name: str, version: str):
         env_str = ' '.join([f'{k}={v}' for k, v in env_vars.items()])
         
         result = os.system(f"bash -c '{env_str} mlflow models serve -m runs:/{run_uuid}/model -p {port} --host 0.0.0.0 --no-conda &'")
-        print(f"Result: {result}")
+        logger.info(f"Model service started with result code: {result}")
         if result != 0:
             raise HTTPException(status_code=500, detail=f"Failed to start model service for {model_name} version {version}")
         
         # Wait a moment for the service to start and check if it's actually running
-        time.sleep(2)
-        
-        # Check if the port is actually being used
-        port_status = subprocess.run(["nmap", "-p", str(port), "localhost"], capture_output=True, text=True)
+        retries = 60
+        running = False
+        while retries > 0 and not running:
+            # Check if the port is actually being used
+            port_status = subprocess.run(["nmap", "-p", str(port), "localhost"], capture_output=True, text=True)
+            logger.info(f"Port status for {port}: {port_status.stdout}")
+            logger.info(f"Port status return code: {port_status.returncode}")
+
+            if port_status.returncode == 0 and "open" in port_status.stdout:
+                logger.info(f"Model service is running on port {port} for {model_name} version {version}")
+                running = True
+
+            retries -= 1
+            time.sleep(1)
+
+        if retries == 0:
+            raise HTTPException(status_code=500, detail=f"Model service failed to start on port {port} for {model_name} version {version}")
+
+        # If the port is not open, raise an error
         if port_status.returncode != 0 or "closed" in port_status.stdout:
             raise HTTPException(status_code=500, detail=f"Model service failed to start on port {port} for {model_name} version {version}")
         
