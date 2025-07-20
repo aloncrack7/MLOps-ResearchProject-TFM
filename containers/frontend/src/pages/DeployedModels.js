@@ -30,6 +30,8 @@ import {
   Info,
   Delete,
   Science,
+  Assessment,
+  Download,
 } from '@mui/icons-material';
 import { modelAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -42,6 +44,11 @@ function DeployedModels() {
   const [undeployDialog, setUndeployDialog] = useState(false);
   const [selectedModel, setSelectedModel] = useState(null);
   const [undeploying, setUndeploying] = useState(false);
+  const [reportDialog, setReportDialog] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(null);
+  const [currentReportModel, setCurrentReportModel] = useState(null);
 
   useEffect(() => {
     fetchDeployedModels();
@@ -82,6 +89,102 @@ function DeployedModels() {
   const handleCloseDialog = () => {
     setUndeployDialog(false);
     setSelectedModel(null);
+  };
+
+  const handleViewReport = async (modelName, version) => {
+    try {
+      setLoadingReport(true);
+      setReportDialog(true);
+      setCurrentReportModel({ modelName, version });
+      const report = await modelAPI.getInitialReport(modelName, version);
+      setReportData(report);
+    } catch (err) {
+      setError(err.message);
+      setReportDialog(false);
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const handleCloseReportDialog = () => {
+    setReportDialog(false);
+    setReportData(null);
+    setCurrentReportModel(null);
+  };
+
+  const handleDownloadReport = async (modelName, version) => {
+    try {
+      setDownloadingReport(`${modelName}-${version}`);
+      const response = await modelAPI.downloadInitialReport(modelName, version);
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${modelName}-${version}-initial-report.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(`Failed to download report: ${err.message}`);
+    } finally {
+      setDownloadingReport(null);
+    }
+  };
+
+  const renderReportContent = () => {
+    if (loadingReport) {
+      return (
+        <Box display="flex" justifyContent="center" p={3}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (!reportData || !reportData.files) {
+      return (
+        <Typography variant="body1" color="textSecondary">
+          No report data available
+        </Typography>
+      );
+    }
+
+    return (
+      <Box>
+        {reportData.files.map((file, index) => (
+          <Box key={index} mb={3}>
+            <Typography variant="h6" gutterBottom>
+              {file.filename}
+            </Typography>
+            {file.type === 'json' ? (
+              <Box
+                component="pre"
+                sx={{
+                  backgroundColor: 'grey.100',
+                  p: 2,
+                  borderRadius: 1,
+                  overflow: 'auto',
+                  maxHeight: 300,
+                  fontSize: '0.875rem',
+                }}
+              >
+                {JSON.stringify(file.content, null, 2)}
+              </Box>
+            ) : file.type === 'png' ? (
+              <Box textAlign="center">
+                <img
+                  src={`data:image/png;base64,${file.content}`}
+                  alt={file.filename}
+                  style={{ maxWidth: '100%', height: 'auto' }}
+                />
+              </Box>
+            ) : null}
+          </Box>
+        ))}
+      </Box>
+    );
   };
 
   const getStatusColor = (status) => {
@@ -178,6 +281,27 @@ function DeployedModels() {
                   </TableCell>
                   <TableCell>
                     <Box display="flex" gap={1}>
+                      <Tooltip title="View Initial Report">
+                        <IconButton
+                          size="small"
+                          color="info"
+                          onClick={() => handleViewReport(modelInfo.model_name, modelInfo.version)}
+                        >
+                          <Assessment />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Download Initial Report">
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={() => handleDownloadReport(modelInfo.model_name, modelInfo.version)}
+                          disabled={downloadingReport === `${modelInfo.model_name}-${modelInfo.version}`}
+                        >
+                          {downloadingReport === `${modelInfo.model_name}-${modelInfo.version}` ? 
+                            <CircularProgress size={20} /> : <Download />
+                          }
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Test Model">
                         <IconButton
                           size="small"
@@ -192,17 +316,6 @@ function DeployedModels() {
                           }}
                         >
                           <Science />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="View Model Info">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            // Open model info in new tab
-                            window.open(`http://localhost:${modelInfo.port}`, '_blank');
-                          }}
-                        >
-                          <OpenInNew />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Undeploy Model">
@@ -254,6 +367,30 @@ function DeployedModels() {
           >
             {undeploying ? 'Undeploying...' : 'Undeploy'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Report Dialog */}
+      <Dialog open={reportDialog} onClose={handleCloseReportDialog} maxWidth="md" fullWidth>
+        <DialogTitle>Initial Report</DialogTitle>
+        <DialogContent>
+          {renderReportContent()}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseReportDialog}>
+            Close
+          </Button>
+          {currentReportModel && (
+            <Button
+              onClick={() => handleDownloadReport(currentReportModel.modelName, currentReportModel.version)}
+              startIcon={downloadingReport === `${currentReportModel.modelName}-${currentReportModel.version}` ? 
+                <CircularProgress size={16} /> : <Download />}
+              variant="outlined"
+              disabled={downloadingReport === `${currentReportModel.modelName}-${currentReportModel.version}`}
+            >
+              Download Report
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

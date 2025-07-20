@@ -35,6 +35,7 @@ function ModelManagement() {
   const [deployDialog, setDeployDialog] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
+  const [numberOfOutputClasses, setNumberOfOutputClasses] = useState('');
   const [modelVersions, setModelVersions] = useState([]);
   const [deploying, setDeploying] = useState(false);
 
@@ -69,10 +70,12 @@ function ModelManagement() {
   const handleDeploy = async () => {
     try {
       setDeploying(true);
-      await modelAPI.deployModel(selectedModel, selectedVersion);
+      const numClasses = numberOfOutputClasses ? parseInt(numberOfOutputClasses) : null;
+      await modelAPI.deployModel(selectedModel, selectedVersion, numClasses);
       setDeployDialog(false);
       setSelectedModel('');
       setSelectedVersion('');
+      setNumberOfOutputClasses('');
       setModelVersions([]);
       // Refresh the page to show updated status
       window.location.reload();
@@ -87,6 +90,7 @@ function ModelManagement() {
     setDeployDialog(false);
     setSelectedModel('');
     setSelectedVersion('');
+    setNumberOfOutputClasses('');
     setModelVersions([]);
   };
 
@@ -187,6 +191,15 @@ function ModelManagement() {
                 ))}
               </Select>
             </FormControl>
+            <TextField
+              fullWidth
+              label="Number of Output Classes (optional)"
+              value={numberOfOutputClasses}
+              onChange={(e) => setNumberOfOutputClasses(e.target.value)}
+              type="number"
+              sx={{ mt: 2 }}
+              helperText="Specify the number of output classes for classification models (e.g., 2 for binary classification)"
+            />
           </Box>
         </DialogContent>
         <DialogActions>

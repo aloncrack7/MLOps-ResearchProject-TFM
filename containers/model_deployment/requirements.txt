@@ -1,6 +1,7 @@
-mlflow
 fastapi
 boto3
 httpx
 pymongo
 uptime-kuma_api
+data-degradation-detector
+python-multipart

@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 import mlflow
 import mlflow.sklearn
 from mlflow.models import infer_signature
+import mlflow.data
 
 import logging
 
@@ -39,7 +40,6 @@ def eval_metrics(actual, pred):
     r2 = r2_score(actual, pred)
     return rmse, mae, r2
 
-
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     np.random.seed(40)
@@ -55,31 +55,35 @@ if __name__ == "__main__":
             "Unable to download training & test CSV, check your internet connection. Error: %s", e
         )
 
-    # Split the data into training and test sets. (0.75, 0.25) split.
-    train, test = train_test_split(data)
+    X = data.drop(["quality", "Id"], axis=1)
+    y = data[["quality"]]
 
-    # The predicted column is "quality" which is a scalar from [3, 9]
-    train_x = train.drop(["quality", "Id"], axis=1)
-    test_x = test.drop(["quality", "Id"], axis=1)
-    train_y = train[["quality"]]
-    test_y = test[["quality"]]
+    # Split the data into training and test sets. (0.75, 0.25) split.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
 
     alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5
     l1_ratio = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
 
-    with mlflow.start_run():
+    dataset_registry = pd.concat([X_train, y_train], axis=1)
+    dataset_mlfow = mlflow.data.from_pandas(
+        pd.concat([X, y], axis=1), name="wine-quality-white", targets="quality"
+    )
+
+    X.to_csv("dataset.csv", index=False)
+
+    with mlflow.start_run() as run:
         lr = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=42)
-        lr.fit(train_x, train_y)
+        lr.fit(X_train, y_train)
 
-        predicted_qualities = lr.predict(test_x)
+        predicted_qualities = lr.predict(X_test)
 
-        (rmse, mae, r2) = eval_metrics(test_y, predicted_qualities)
+        (rmse, mae, r2) = eval_metrics(y_test, predicted_qualities)
 
         print("Elasticnet model (alpha={:f}, l1_ratio={:f}):".format(alpha, l1_ratio))
         print("  RMSE: %s" % rmse)
         print("  MAE: %s" % mae)
         print("  R2: %s" % r2)
-        signature = infer_signature(train_x, train_y)
+        signature = infer_signature(X_train, y_train)
 
         mlflow.log_param("alpha", alpha)
         mlflow.log_param("l1_ratio", l1_ratio)
@@ -89,6 +93,9 @@ if __name__ == "__main__":
 
         tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
         print(mlflow.get_artifact_uri())
+
+        mlflow.log_input(dataset_mlfow)
+        mlflow.log_artifact("dataset.csv", artifact_path="data")
 
         # Model registry does not work with file store
         if tracking_url_type_store != "file":
@@ -100,3 +107,5 @@ if __name__ == "__main__":
             mlflow.sklearn.log_model(lr, "model", registered_model_name="ElasticnetWineModel", signature=signature)
         else:
             mlflow.sklearn.log_model(lr, "model")
+
+    os.rmove("dataset.csv")

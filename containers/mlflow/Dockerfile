@@ -4,6 +4,7 @@ FROM ubuntu:22.04
 RUN apt-get update && \
     apt-get install -y python3 \
         python3-pip \
+        python3-venv \
         wget \
         libpq-dev
 
@@ -36,7 +37,12 @@ RUN ARCH=$(uname -i) && \
 ENV PATH=$CONDA_DIR/bin:$PATH
 
 RUN echo "source ${CONDA_DIR}/etc/profile.d/conda.sh" >> ~/.profile
-RUN conda init bash
+RUN conda init bash && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r && \
+    conda update --name base --channel defaults conda -y && \
+    conda create -n mlflow_env -y && \
+    conda clean --all --yes
 
 # Work environment
 RUN mkdir ${HOME}/{artifacts,mlruns}

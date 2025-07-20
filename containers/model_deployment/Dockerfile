@@ -17,6 +17,9 @@ RUN sqlite3 /app/model_deployment.db < schema.sql
 
 RUN python3 -m venv venv
 SHELL ["/bin/bash", "-c"]
+
+ARG MLFLOW_VERSION
 RUN source venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install mlflow==${MLFLOW_VERSION}

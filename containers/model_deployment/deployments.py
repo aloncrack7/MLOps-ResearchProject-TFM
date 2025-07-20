@@ -1,6 +1,6 @@
 import mlflow
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File
 from mlflow.tracking import MlflowClient
 from mlflow.models.model import get_model_info
 import os
@@ -19,6 +19,8 @@ from fastapi.responses import StreamingResponse
 import io
 from uptime_kuma_api import UptimeKumaApi, MonitorType
 import subprocess
+from data_degradation_detector import report
+import zipfile
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -168,7 +170,7 @@ def _reload_deployed_models():
                     api.login(uptime_kuma_user, uptime_kuma_password)
                     monitor = {
                         "type": MonitorType.HTTP,
-                        "name": f"{deployed_models[model]['model_name']} version {deployed_models[model]['model_version']}",
+                        "name": f"{deployed_models[model]['model_name']} version {deployed_models[model]['version']}",
                         "url": f"http://model_deployment:8000/{model}"
                     }
 
@@ -235,12 +237,80 @@ def get_model_python_version(model_name: str, version: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving Python version for model {model_name} version {version}: {str(e)}")
 
+@app.get("/model/{model_name}-{version}/initial_report/download")
+async def download_initial_report(model_name: str, version: str):
+    """
+    Download the initial report of a model as a zip file.
+    """
+    try:
+        report_files = initial_report(model_name, version)
+        if "files" not in report_files or not report_files["files"]:
+            raise HTTPException(status_code=404, detail=f"Initial report for model {model_name} version {version} not found")
+
+        # Create a zip file from the report files
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file in report_files["files"]:
+                if file["type"] == "json":
+                    zip_file.writestr(file["filename"], json.dumps(file["content"], indent=4))
+                elif file["type"] == "png":
+                    zip_file.writestr(file["filename"], base64.b64decode(file["content"]))
+
+        zip_buffer.seek(0)
+        return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": f"attachment; filename={model_name}-{version}-initial_report.zip"})
+    
+    except Exception as e:
+        logger.error(f"Error downloading initial report for model {model_name} version {version}: {str(e)}")
+        
+
+@app.get("/model/{model_name}-{version}/initial_report")
+def initial_report(model_name: str, version: str):
+    """
+    Get the initial report of a model
+    """
+
+    try:        
+        model_name_and_version = f"{model_name}-{version}"
+        if model_name_and_version not in deployed_models:
+            raise HTTPException(status_code=404, detail=f"Model {model_name_and_version} not found")
+        
+        report_path = f"/app/models/{model_name}-{version}/initial_report"
+        if not os.path.exists(report_path):
+            raise HTTPException(status_code=404, detail=f"Initial report for model {model_name} version {version} not found")
+
+        # Collect all .json and .png files in the report directory
+        files = []
+        for filename in os.listdir(report_path):
+            file_path = os.path.join(report_path, filename)
+            if filename.endswith('.json'):
+                with open(file_path, 'r') as f:
+                    files.append({
+                    "filename": filename,
+                    "type": "json",
+                    "content": json.load(f)
+                    })
+            elif filename.endswith('.png'):
+                with open(file_path, 'rb') as f:
+                    files.append({
+                    "filename": filename,
+                    "type": "png",
+                    "content": base64.b64encode(f.read()).decode('utf-8')
+                    })
+
+        return {"files": files}
+
+    except Exception as e:
+        logger.error(f"Error retrieving initial report for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving initial report for model {model_name} version {version}")
+
+
 @app.post("/deploy/{model_name}/{version}")
-def deploy(model_name: str, version: str):
+async def deploy(model_name: str, version: str, request: Request):
     """
     Deploy a specific version of a model.
     """
-    try:
+
+    try:        
         # Get the run UUID from the model and version
         model_versions = client.search_model_versions(f"name='{model_name}'")
         run_uuid = None
@@ -248,18 +318,33 @@ def deploy(model_name: str, version: str):
             if str(mv.version) == version:
                 run_uuid = mv.run_id
                 break
-        
+
         if run_uuid is None:
             raise HTTPException(status_code=404, detail=f"Model version {version} not found for model {model_name}")
+
+        logger.info(f"Deploying model {model_name} version {version} with run UUID {run_uuid}")
+
+        # Download the dataset.csv artifact from MLflow for this run
+        os.makedirs(f"/app/models/{model_name}-{version}/report", exist_ok=True)
+        dataset_path = client.download_artifacts(run_uuid, "data/dataset.csv", dst_path=f"/app/models/{model_name}-{version}/initial_report")
+        logger.info(f"Dataset downloaded to {dataset_path}")
+        X = pd.read_csv(dataset_path)
+        logger.info(f"Dataset shape: {X.shape}")
+
+        try:
+            report.create_initial_report(X, f"/app/models/{model_name}-{version}/initial_report", int(request.query_params.get("number_of_output_classes", None)))
+        except Exception as e:
+            logger.error(f"Error creating initial report for model {model_name} version {version}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error creating initial report for model {model_name} version {version}: {str(e)}")
         
         port = _get_free_port()
 
         logger.info(f"Deploying model {model_name} version {version} on port {port}")
-        client.download_artifacts(run_uuid, "model/requirements.txt", dst_path=f"/app/{model_name}-{version}")
+        client.download_artifacts(run_uuid, "model/requirements.txt", dst_path=f"/app/models/{model_name}-{version}")
         logger.info(f"Downloaded requirements.txt for model {model_name} version {version}")
 
         try:
-            with open(f"/app/{model_name}-{version}/requirements.txt", "a+") as f:
+            with open(f"/app/models/{model_name}-{version}/requirements.txt", "a+") as f:
                 f.write("\nboto3\nhdfs\n")
                 f.seek(0)
                 requirements = f.readlines()
@@ -269,16 +354,16 @@ def deploy(model_name: str, version: str):
 
         logger.info(f"Starting deployment for model {model_name} version {version} on port {port}")
         # Create the virtual environment
-        os.system(f"""mkdir -p /app/{model_name}-{version} && \
-            python -m venv /app/{model_name}-{version}/venv && \
-            bash -c 'source /app/{model_name}-{version}/venv/bin/activate && pip install -r /app/{model_name}-{version}/requirements.txt'""")
+        os.system(f"""mkdir -p /app/models/{model_name}-{version} && \
+            python -m venv /app/models/{model_name}-{version}/venv && \
+            bash -c 'source /app/models/{model_name}-{version}/venv/bin/activate && pip install -r /app/models/{model_name}-{version}/requirements.txt'""")
         logger.info(f"Virtual environment created for model {model_name} version {version}")
         
         # Start the model service and check if it actually started
         # Use the existing virtual environment and set MLflow to not create new environments
         env_vars = {
-            'VIRTUAL_ENV': f'/app/{model_name}-{version}/venv',
-            'PATH': f'/app/{model_name}-{version}/venv/bin:' + os.environ.get('PATH', ''),
+            'VIRTUAL_ENV': f'/app/models/{model_name}-{version}/venv',
+            'PATH': f'/app/models/{model_name}-{version}/venv/bin:' + os.environ.get('PATH', ''),
             'MLFLOW_DISABLE_ENV_CREATION': 'true'
         }
         env_str = ' '.join([f'{k}={v}' for k, v in env_vars.items()])
@@ -390,6 +475,8 @@ def undeploy(model_name_and_version: str):
                     api.delete_monitor(monitor['id'])
                     logger.info(f"Monitor '{monitor_name}' removed from Uptime Kuma.")
                     break
+
+        os.rmdir(f"/app/models/{model_name_and_version}")
 
         logger.info(f"Model {model_name_and_version} undeployed successfully.")
         

@@ -24,8 +24,9 @@ export const modelAPI = {
   },
 
   // Deploy a model
-  deployModel: async (modelName, version) => {
-    const response = await api.post(`/deploy/${modelName}/${version}`);
+  deployModel: async (modelName, version, numberOfOutputClasses = null) => {
+    const params = numberOfOutputClasses ? { number_of_output_classes: numberOfOutputClasses } : {};
+    const response = await api.post(`/deploy/${modelName}/${version}`, null, { params });
     return response.data;
   },
 
@@ -63,6 +64,20 @@ export const modelAPI = {
   callModel: async (modelName, version, data) => {
     const response = await api.post(`/model/${modelName}-${version}`, data);
     return response.data;
+  },
+
+  // Get initial report for a model
+  getInitialReport: async (modelName, version) => {
+    const response = await api.get(`/model/${modelName}-${version}/initial_report`);
+    return response.data;
+  },
+
+  // Download initial report for a model
+  downloadInitialReport: async (modelName, version) => {
+    const response = await api.get(`/model/${modelName}-${version}/initial_report/download`, {
+      responseType: 'blob'
+    });
+    return response;
   },
 };
 

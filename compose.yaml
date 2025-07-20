@@ -89,6 +89,8 @@ services:
     build:
       context: ./containers/model_deployment
       dockerfile: Dockerfile
+      args:
+        - MLFLOW_VERSION=${MLFLOW_VERSION}
     container_name: model_deployment
     env_file:
       - .env
@@ -111,6 +113,7 @@ services:
       - ./containers/model_deployment/requirements.txt:/app/requirements.txt:rw
       - ./containers/model_deployment/entrypoint.sh:/app/entrypoint.sh:rw
       - ./containers/model_deployment/model_deployment.db:/app/model_deployment.db:rw
+      - ./containers/model_deployment/models:/app/models:rw
     command: >
       /app/entrypoint.sh
     networks:
