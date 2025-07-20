@@ -79,6 +79,43 @@ export const modelAPI = {
     });
     return response;
   },
+
+  // Get current metrics for a model
+  getModelMetrics: async (modelName, version) => {
+    const response = await api.get(`/model/${modelName}-${version}/metrics`);
+    return response.data;
+  },
+
+  // Update model metrics with new data
+  setNewMetrics: async (modelName, version, data) => {
+    const response = await api.post(`/model/${modelName}-${version}/set_new_metrics`, data);
+    return response.data;
+  },
+
+  // Download dataset for a model
+  downloadDataset: async (modelName, version, startDate = null, endDate = null) => {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    
+    const response = await api.get(`/model/${modelName}-${version}/dataset`, {
+      responseType: 'blob',
+      params
+    });
+    return response;
+  },
+
+  // Get list of new metrics files for a model
+  getNewMetricsFileNames: async (modelName, version) => {
+    const response = await api.get(`/model/${modelName}-${version}/new_metrics_file_name`);
+    return response.data;
+  },
+
+  // Get specific new metrics file content
+  getNewMetricsFile: async (modelName, version, filename) => {
+    const response = await api.get(`/model/${modelName}-${version}/new_metrics/${filename}`);
+    return response.data;
+  },
 };
 
 // Error handler

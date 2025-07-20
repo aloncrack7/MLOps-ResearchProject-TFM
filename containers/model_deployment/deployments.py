@@ -21,6 +21,118 @@ from uptime_kuma_api import UptimeKumaApi, MonitorType
 import subprocess
 from data_degradation_detector import report
 import zipfile
+import numpy as np
+from sklearn import metrics as sk_metrics
+
+from sklearn import metrics as sk_metrics
+
+metric_function_mapping = {
+    # Classification Metrics
+    "accuracy_score": sk_metrics.accuracy_score,
+    "accuracy": sk_metrics.accuracy_score,
+
+    "balanced_accuracy_score": sk_metrics.balanced_accuracy_score,
+    "balanced_accuracy": sk_metrics.balanced_accuracy_score,
+
+    "f1_score": sk_metrics.f1_score,
+    "f1": sk_metrics.f1_score,
+
+    "fbeta_score": sk_metrics.fbeta_score,
+    "fbeta": sk_metrics.fbeta_score,
+
+    "precision_score": sk_metrics.precision_score,
+    "precision": sk_metrics.precision_score,
+
+    "recall_score": sk_metrics.recall_score,
+    "recall": sk_metrics.recall_score,
+
+    "jaccard_score": sk_metrics.jaccard_score,
+    "jaccard": sk_metrics.jaccard_score,
+
+    "cohen_kappa_score": sk_metrics.cohen_kappa_score,
+    "kappa": sk_metrics.cohen_kappa_score,
+
+    "confusion_matrix": sk_metrics.confusion_matrix,
+    "cm": sk_metrics.confusion_matrix,
+
+    "classification_report": sk_metrics.classification_report,
+    "report": sk_metrics.classification_report,
+
+    "matthews_corrcoef": sk_metrics.matthews_corrcoef,
+    "mcc": sk_metrics.matthews_corrcoef,
+
+    "hamming_loss": sk_metrics.hamming_loss,
+    "hinge_loss": sk_metrics.hinge_loss,
+
+    "zero_one_loss": sk_metrics.zero_one_loss,
+
+    "top_k_accuracy_score": sk_metrics.top_k_accuracy_score,
+    "top_k_accuracy": sk_metrics.top_k_accuracy_score,
+
+    "multilabel_confusion_matrix": sk_metrics.multilabel_confusion_matrix,
+
+    # Probabilistic Metrics
+    "roc_auc_score": sk_metrics.roc_auc_score,
+    "auc": sk_metrics.roc_auc_score,  # Common alias
+    "roc_auc": sk_metrics.roc_auc_score,
+
+    "average_precision_score": sk_metrics.average_precision_score,
+    "ap": sk_metrics.average_precision_score,
+
+    "log_loss": sk_metrics.log_loss,
+    "cross_entropy": sk_metrics.log_loss,
+
+    "brier_score_loss": sk_metrics.brier_score_loss,
+    "brier": sk_metrics.brier_score_loss,
+
+    "class_likelihood_ratios": sk_metrics.class_likelihood_ratios,
+
+    # Ranking Metrics
+    "dcg_score": sk_metrics.dcg_score,
+    "ndcg_score": sk_metrics.ndcg_score,
+    "dcg": sk_metrics.dcg_score,
+    "ndcg": sk_metrics.ndcg_score,
+
+    # Regression Metrics
+    "mean_squared_error": sk_metrics.mean_squared_error,
+    "mse": sk_metrics.mean_squared_error,
+
+    "root_mean_squared_error": sk_metrics.mean_squared_error,  # will apply sqrt
+    "rmse": sk_metrics.mean_squared_error,
+
+    "mean_squared_log_error": sk_metrics.mean_squared_log_error,
+    "msle": sk_metrics.mean_squared_log_error,
+
+    "root_mean_squared_log_error": sk_metrics.mean_squared_log_error,  # will apply sqrt
+    "rmsle": sk_metrics.mean_squared_log_error,
+
+    "mean_absolute_error": sk_metrics.mean_absolute_error,
+    "mae": sk_metrics.mean_absolute_error,
+
+    "median_absolute_error": sk_metrics.median_absolute_error,
+    "medae": sk_metrics.median_absolute_error,
+
+    "mean_absolute_percentage_error": sk_metrics.mean_absolute_percentage_error,
+    "mape": sk_metrics.mean_absolute_percentage_error,
+
+    "explained_variance_score": sk_metrics.explained_variance_score,
+    "explained_variance": sk_metrics.explained_variance_score,
+
+    "r2_score": sk_metrics.r2_score,
+    "r2": sk_metrics.r2_score,
+
+    "max_error": sk_metrics.max_error,
+
+    "mean_gamma_deviance": sk_metrics.mean_gamma_deviance,
+    "mean_pinball_loss": sk_metrics.mean_pinball_loss,
+    "mean_poisson_deviance": sk_metrics.mean_poisson_deviance,
+    "mean_tweedie_deviance": sk_metrics.mean_tweedie_deviance,
+
+    "d2_log_loss_score": sk_metrics.d2_log_loss_score,
+    "d2_absolute_error_score": sk_metrics.d2_absolute_error_score,
+    "d2_pinball_score": sk_metrics.d2_pinball_score,
+    "d2_tweedie_score": sk_metrics.d2_tweedie_score,
+}
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -123,6 +235,10 @@ def _check_database_mongo():
     except Exception as e:
         logger.error(f"MongoDB connection failed: {e}")
 
+def _monitor_exists(api, name):
+    monitors = api.get_monitors()
+    return any(m['name'] == name for m in monitors)
+
 # Initialize the database and load deployed models
 _init_database()
 app = FastAPI()
@@ -181,10 +297,6 @@ def _reload_deployed_models():
                         logger.info(f"Monitor '{monitor['name']}' already exists in Uptime Kuma. Skipping registration.")
 
 _reload_deployed_models()
-
-def _monitor_exists(api, name):
-    monitors = api.get_monitors()
-    return any(m['name'] == name for m in monitors)
 
 @app.get("/get_model_list")
 def get_model_list():
@@ -330,9 +442,11 @@ async def deploy(model_name: str, version: str, request: Request):
         logger.info(f"Dataset downloaded to {dataset_path}")
         X = pd.read_csv(dataset_path)
         logger.info(f"Dataset shape: {X.shape}")
+        metrics = client.get_run(run_uuid).data.metrics
+        logger.info(f"Metrics for model {model_name} version {version}: {metrics}")
 
         try:
-            report.create_initial_report(X, f"/app/models/{model_name}-{version}/initial_report", int(request.query_params.get("number_of_output_classes", None)))
+            report.create_initial_report(X, metrics, f"/app/models/{model_name}-{version}/initial_report", int(request.query_params.get("number_of_output_classes", None)))
         except Exception as e:
             logger.error(f"Error creating initial report for model {model_name} version {version}: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error creating initial report for model {model_name} version {version}: {str(e)}")
@@ -482,6 +596,7 @@ def undeploy(model_name_and_version: str):
         
         return {"message": f"Model {model_name_and_version} undeployed"}
     except Exception as e:
+        logger.error(f"Error undeploying model {model_name_and_version}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/get_number_free_ports")
@@ -766,6 +881,131 @@ async def health_check():
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/model/{model_name}-{version}/metrics")
+async def get_metrics(model_name: str, version: str):
+    """
+    Get the metrics of a model.
+    """
+    try:
+        with open(f"/app/models/{model_name}-{version}/initial_report/base_metrics.json", "r") as f:
+            metrics = json.load(f)
+        return metrics
+
+    except Exception as e:
+        logger.error(f"Error getting metrics for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating metrics for model {model_name} version {version}: {str(e)}")
+
+@app.get("/model/{model_name}-{version}/new_metrics_file_name")
+async def get_new_metrics_files(model_name: str, version: str):
+    """
+    Get the list of new metrics files for a model.
+    """
+    try:
+        report_path = f"/app/models/{model_name}-{version}/report"
+        if not os.path.exists(report_path):
+            return {"files": []}
+            
+        files = [
+            file for file in os.listdir(report_path)
+            if file.startswith("metrics_at_") and file.endswith(".json")
+        ]
+        return {"files": files}
+
+    except Exception as e:
+        logger.error(f"Error getting new metrics files for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting new metrics files for model {model_name} version {version}: {str(e)}")
+
+@app.get("/model/{model_name}-{version}/new_metrics/{filename}")
+async def get_new_metrics_file(model_name: str, version: str, filename: str):
+    """
+    Get a specific new metrics file content for a model.
+    """
+    try:
+        file_path = f"/app/models/{model_name}-{version}/report/{filename}"
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"Metrics file {filename} not found for model {model_name} version {version}")
+            
+        with open(file_path, "r") as f:
+            metrics = json.load(f)
+        return metrics
+
+    except Exception as e:
+        logger.error(f"Error getting new metrics file {filename} for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting new metrics file {filename} for model {model_name} version {version}: {str(e)}")
+
+@app.post("/model/{model_name}-{version}/set_new_metrics")
+async def update_metrics(model_name: str, version: str, request: Request):
+    """
+    Update the metrics of a model.
+    """
+    try:
+        model_name_and_version = f"{model_name}-{version}"
+        if model_name_and_version not in deployed_models:
+            raise HTTPException(status_code=404, detail=f"Model {model_name_and_version} not found")
+
+        request_body = await request.body()
+        logger.info(f"Request body: {request_body}")
+        # Parse the request body as JSON and extract 'instances'
+        body_json = json.loads(request_body)
+        logger.info(f"Parsed body JSON: {body_json}")
+        instances = body_json.get("instances", [])
+        logger.info(f"Instances: {instances}")
+        results = body_json.get("results", [])
+        logger.info(f"Results: {results}")
+
+        # Redirect the call to /{model_name}-{version}/invocations using the correct port
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(
+                f"http://localhost:8000/{model_name}-{version}/invocations",
+                headers={"Content-Type": "application/json"},
+                content=json.dumps({"instances": instances}).encode('utf-8')
+            )
+        predictions = Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.headers.get("content-type")
+        )
+
+        expected = np.array(results)
+        logger.info(f"Expected results: {expected}")
+        # Parse the predictions response as JSON and extract "predictions"
+        predictions_json = json.loads(response.content)
+        obtain = np.array(predictions_json.get("predictions", []))
+        logger.info(f"Obtained results: {obtain}")
+
+        # Calculate metrics
+        with open(f"/app/models/{model_name}-{version}/initial_report/base_metrics.json", "r") as f:
+            base_metrics = json.load(f)
+        logger.info(f"Base metrics: {base_metrics}")
+
+        # Get the name of the metric in base_metrics
+        metric_names = list(base_metrics.keys())
+        
+        calculated_metrics = {}
+        for name in metric_names:
+            metric_fn = metric_function_mapping.get(name)
+            if metric_fn is not None:
+                try:
+                    score = metric_fn(expected, obtain)
+                    calculated_metrics[name] = score
+                    logger.info(f"Metric {name}: {score}")
+                except Exception as metric_error:
+                    logger.warning(f"Could not calculate metric {name}: {metric_error}")
+            else:
+                logger.warning(f"Metric function for {name} not found.")
+
+        timestamp = body_json.get("timestamp", time.time())
+        metrics_at_path = f"/app/models/{model_name}-{version}/report/metrics_at_{timestamp}.json"
+        with open(metrics_at_path, "w") as f:
+            json.dump(calculated_metrics, f, indent=4)
+
+        return calculated_metrics
+
+    except Exception as e:
+        logger.error(f"Error updating metrics for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating metrics for model {model_name} version {version}: {str(e)}")
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_model(request: Request, path: str):

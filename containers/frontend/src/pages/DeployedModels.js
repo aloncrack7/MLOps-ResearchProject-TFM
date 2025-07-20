@@ -32,6 +32,8 @@ import {
   Science,
   Assessment,
   Download,
+  TrendingUp,
+  DataUsage,
 } from '@mui/icons-material';
 import { modelAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -49,6 +51,7 @@ function DeployedModels() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(null);
   const [currentReportModel, setCurrentReportModel] = useState(null);
+  const [downloadingDataset, setDownloadingDataset] = useState(null);
 
   useEffect(() => {
     fetchDeployedModels();
@@ -131,6 +134,28 @@ function DeployedModels() {
       setError(`Failed to download report: ${err.message}`);
     } finally {
       setDownloadingReport(null);
+    }
+  };
+
+  const handleDownloadDataset = async (modelName, version) => {
+    try {
+      setDownloadingDataset(`${modelName}-${version}`);
+      const response = await modelAPI.downloadDataset(modelName, version);
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${modelName}-${version}-dataset.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(`Failed to download dataset: ${err.message}`);
+    } finally {
+      setDownloadingDataset(null);
     }
   };
 
@@ -300,6 +325,33 @@ function DeployedModels() {
                           {downloadingReport === `${modelInfo.model_name}-${modelInfo.version}` ? 
                             <CircularProgress size={20} /> : <Download />
                           }
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Download Dataset">
+                        <IconButton
+                          size="small"
+                          color="info"
+                          onClick={() => handleDownloadDataset(modelInfo.model_name, modelInfo.version)}
+                          disabled={downloadingDataset === `${modelInfo.model_name}-${modelInfo.version}`}
+                        >
+                          {downloadingDataset === `${modelInfo.model_name}-${modelInfo.version}` ? 
+                            <CircularProgress size={20} /> : <DataUsage />
+                          }
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Manage Metrics">
+                        <IconButton
+                          size="small"
+                          color="warning"
+                          onClick={() => {
+                            navigate('/metrics', { 
+                              state: { 
+                                selectedModel: `${modelInfo.model_name}-${modelInfo.version}`
+                              } 
+                            });
+                          }}
+                        >
+                          <TrendingUp />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Test Model">

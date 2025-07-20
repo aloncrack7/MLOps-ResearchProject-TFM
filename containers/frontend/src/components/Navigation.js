@@ -18,6 +18,7 @@ import {
   Science as TestingIcon,
   Menu as MenuIcon,
   GetApp as GetAppIcon,
+  Assessment as MetricsIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -27,6 +28,7 @@ const menuItems = [
   { text: 'Model Management', icon: <ModelIcon />, path: '/models' },
   { text: 'Deployed Models', icon: <DeployedIcon />, path: '/deployed' },
   { text: 'Model Testing', icon: <TestingIcon />, path: '/testing' },
+  { text: 'Model Metrics', icon: <MetricsIcon />, path: '/metrics' },
   { text: 'Download Dataset', icon: <GetAppIcon />, path: '/download' },
 ];
 

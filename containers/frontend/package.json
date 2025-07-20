@@ -10,8 +10,10 @@
     "react-router-dom": "^6.11.2",
     "@mui/material": "^5.13.0",
     "@mui/icons-material": "^5.11.16",
+    "@mui/x-date-pickers": "^6.2.0",
     "@emotion/react": "^11.11.0",
-    "@emotion/styled": "^11.11.0"
+    "@emotion/styled": "^11.11.0",
+    "date-fns": "^2.29.3"
   },
   "scripts": {
     "start": "react-scripts start",
