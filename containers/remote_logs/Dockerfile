@@ -19,6 +19,6 @@ RUN python3 -m venv venv && \
     sqlite3 users.db < schema.sql
 
 RUN chmod +x handle_updates.sh && \
-    crontab -l | { cat; echo "0 7 * * * /app/handle_updates.sh"; echo "5 7 * * 1 /app/handle_reports.py" } | crontab -
+    crontab -l | { cat; echo "0 7 * * * /app/handle_updates.sh"; echo "5 7 * * 1 /app/venv/bin/python /app/handle_reports.py" } | crontab -
 
 CMD ["/app/venv/bin/python3", "telegram_bot.py"]
