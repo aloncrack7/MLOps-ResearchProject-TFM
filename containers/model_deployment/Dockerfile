@@ -6,7 +6,8 @@ RUN apt-get update && \
                        python3-pip \
                        python3-venv \
                        sqlite3 \
-                       nmap
+                       nmap \
+                       zip
 
 RUN mkdir /app
 WORKDIR /app

@@ -19,6 +19,7 @@ import {
   Menu as MenuIcon,
   GetApp as GetAppIcon,
   Assessment as MetricsIcon,
+  TrendingDown as DegradationIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -29,6 +30,7 @@ const menuItems = [
   { text: 'Deployed Models', icon: <DeployedIcon />, path: '/deployed' },
   { text: 'Model Testing', icon: <TestingIcon />, path: '/testing' },
   { text: 'Model Metrics', icon: <MetricsIcon />, path: '/metrics' },
+  { text: 'Degradation Report', icon: <DegradationIcon />, path: '/degradation' },
   { text: 'Download Dataset', icon: <GetAppIcon />, path: '/download' },
 ];
 

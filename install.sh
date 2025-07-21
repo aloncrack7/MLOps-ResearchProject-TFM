@@ -156,7 +156,7 @@ if [[ ! -z $change_env ]] && ([[ $change_env = 'y' ]] || [[ $change_env = 'Y' ]]
     set_up_enviroment_variable "TELEGRAM_BACKUP_NOTIFICATIONS_ID" "Telegram bot id for backup_notifications" $store_config false .env 
 
     set_up_enviroment_variable "EMAIL_SENDER_ADDRESS" "Email sender address" $store_config false .env
-    set_up_enviroment_variable "EMAIL_SENDER_TOEKN" "Email sender token" $store_config true .env
+    set_up_enviroment_variable "EMAIL_SENDER_TOKEN" "Email sender token" $store_config true .env
 
     set_up_enviroment_variable "MONGODB_USER" "MongoDB user" $store_config true .env
     set_up_enviroment_variable "MONGODB_PASSWORD" "MongoDB password" $store_config true .env

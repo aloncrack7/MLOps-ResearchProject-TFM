@@ -116,6 +116,14 @@ export const modelAPI = {
     const response = await api.get(`/model/${modelName}-${version}/new_metrics/${filename}`);
     return response.data;
   },
+
+  // Download degradation report for a model
+  downloadDegradationReport: async (modelName, version) => {
+    const response = await api.get(`/model/${modelName}-${version}/degradation_report`, {
+      responseType: 'blob'
+    });
+    return response;
+  },
 };
 
 // Error handler

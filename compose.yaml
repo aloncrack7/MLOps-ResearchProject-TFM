@@ -173,6 +173,7 @@ services:
       - ./containers/remote_logs/send_logs.py:/app/send_logs.py:rw
       - ./containers/remote_logs/users.db:/app/users.db:rw
       - ./containers/remote_logs/versions.csv:/app/versions.csv:rw
+      - ./containers/remote_logs/handle_reports.py:/app/handle_reports.py:rw
       - ./logs/telegram_bot.log:/app/telegram_bot.log:rw
 
 networks:

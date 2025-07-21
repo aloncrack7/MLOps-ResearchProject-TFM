@@ -19,10 +19,11 @@ from fastapi.responses import StreamingResponse
 import io
 from uptime_kuma_api import UptimeKumaApi, MonitorType
 import subprocess
-from data_degradation_detector import report
+from data_degradation_detector import report, multivariate as mv
 import zipfile
 import numpy as np
 from sklearn import metrics as sk_metrics
+from datetime import datetime, timedelta
 
 from sklearn import metrics as sk_metrics
 
@@ -437,8 +438,9 @@ async def deploy(model_name: str, version: str, request: Request):
         logger.info(f"Deploying model {model_name} version {version} with run UUID {run_uuid}")
 
         # Download the dataset.csv artifact from MLflow for this run
-        os.makedirs(f"/app/models/{model_name}-{version}/report", exist_ok=True)
-        dataset_path = client.download_artifacts(run_uuid, "data/dataset.csv", dst_path=f"/app/models/{model_name}-{version}/initial_report")
+        os.makedirs(f"/app/models/{model_name}-{version}/initial", exist_ok=True)
+        os.makedirs(f"/app/models/{model_name}-{version}/data", exist_ok=True)
+        dataset_path = client.download_artifacts(run_uuid, "data/dataset.csv", dst_path=f"/app/models/{model_name}-{version}")
         logger.info(f"Dataset downloaded to {dataset_path}")
         X = pd.read_csv(dataset_path)
         logger.info(f"Dataset shape: {X.shape}")
@@ -546,6 +548,7 @@ async def deploy(model_name: str, version: str, request: Request):
 
         return {"message": f"Model {model_name} version {version} deployed on port {port}"}
     except Exception as e:
+        logger.error(f"Error deploying model {model_name} version {version}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/get_deployed_models")
@@ -775,7 +778,11 @@ def _clean_dataset(dataset):
         logger.info(f"Doc: {doc}")
         data_field = doc.get("data", {})
         logger.info(f"Data: {data_field}")
-        instances = data_field.get("instances", [])
+        # Check if data_field is a dict before calling .get
+        if isinstance(data_field, dict):
+            instances = data_field.get("instances", [])
+        else:
+            instances = []
         logger.info(f"Instances: {instances}")
         for instance in instances:
             # If instance is a dict of features, just append it
@@ -829,6 +836,7 @@ async def get_dataset(model_name: str, version: str, request: Request):
         stream.seek(0)
         return StreamingResponse(stream, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={model_name}-{version}-dataset.csv"})
     except Exception as e:
+        logger.error(f"Error retrieving dataset for model {model_name} version {version}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 def _save_inputed_data_to_mongo(model_name, version, data):
@@ -1006,6 +1014,79 @@ async def update_metrics(model_name: str, version: str, request: Request):
     except Exception as e:
         logger.error(f"Error updating metrics for model {model_name} version {version}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error updating metrics for model {model_name} version {version}: {str(e)}")
+
+@app.get("/model/{model_name}-{version}/degradation_report")
+async def get_degradation_report(model_name: str, version: str):
+    """
+    Get the degradation report of a model.
+    """
+    try:
+        model_name_and_version = f"{model_name}-{version}"
+        if model_name_and_version not in deployed_models:
+            raise HTTPException(status_code=404, detail=f"Model {model_name_and_version} not found")
+        
+        timestamp = time.strftime("%y_%m_%d")
+        report_path = f"/app/models/{model_name}-{version}/report_degradation_{timestamp}"
+
+        if os.path.exists(report_path):
+            # If the report already exists, return it as a zip file
+            zip_stream = open(f"{report_path}.zip", "rb")
+            return StreamingResponse(zip_stream, media_type="application/zip", headers={"Content-Disposition": f"attachment; filename={os.path.basename(report_path)}.zip"})
+
+        original_dataset = pd.read_csv(f"/app/models/{model_name}-{version}/initial_report/data/dataset.csv")
+
+        with open(f"/app/models/{model_name}-{version}/initial_report/kmeans_clusters.json", "r") as f:
+            original_cluster_stats = mv.get_cluster_info_from_json(json.load(f))
+        # Generate datasets for last week, month, year, and ever
+
+        now = datetime.utcnow()
+        date_ranges = {
+            "week": (now - timedelta(days=7)).strftime("%Y-%m-%d"),
+            "month": (now - timedelta(days=30)).strftime("%Y-%m-%d"),
+            "year": (now - timedelta(days=365)).strftime("%Y-%m-%d"),
+            "ever": None
+        }
+
+        datasets = []
+        for _period, start_date in date_ranges.items():
+            if start_date:
+                # Query for this period
+                async with httpx.AsyncClient() as http_client:
+                    response = await http_client.get(
+                        f"http://localhost:8000/model/{model_name}-{version}/dataset",
+                        params={"start_date": start_date, "end_date": now.strftime("%Y-%m-%d")}
+                    )
+                if response.status_code == 200 and response.content:
+                    datasets.append(pd.read_csv(io.StringIO(response.text)))
+            else:
+                # "ever" means all data
+                async with httpx.AsyncClient() as http_client:
+                    response = await http_client.get(
+                        f"http://localhost:8000/model/{model_name}-{version}/dataset"
+                    )
+                if response.status_code == 200 and response.content:
+                    datasets.append(pd.read_csv(io.StringIO(response.text)))
+
+        with open(f"/app/models/{model_name}-{version}/initial_report/base_metrics.json", "r") as f:
+            metrics = json.load(f)
+
+        new_metrics = []
+        for file in os.listdir(f"/app/models/{model_name}-{version}/report"):
+            if file.startswith("metrics_at_") and file.endswith(".json"):
+                with open(f"/app/models/{model_name}-{version}/report/{file}", "r") as f:
+                    new_metrics.append(json.load(f))
+
+        report.create_report(original_dataset, original_cluster_stats, datasets, metrics, report_path, new_metrics)
+
+        # Create a zip file of the report
+        os.system(f"zip -r {report_path}.zip {report_path}")
+
+        # Return the zip file as a download
+        zip_stream = open(f"{report_path}.zip", "rb")
+        return StreamingResponse(zip_stream, media_type="application/zip", headers={"Content-Disposition": f"attachment; filename={os.path.basename(report_path)}.zip"})
+    except Exception as e:
+        logger.error(f"Error getting degradation report for model {model_name} version {version}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting degradation report for model {model_name} version {version}: {str(e)}")
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_model(request: Request, path: str):

@@ -108,4 +108,4 @@ if __name__ == "__main__":
         else:
             mlflow.sklearn.log_model(lr, "model")
 
-    os.rmove("dataset.csv")
+    os.remove("dataset.csv")

@@ -8,6 +8,7 @@ import ModelManagement from './pages/ModelManagement';
 import DeployedModels from './pages/DeployedModels';
 import ModelTesting from './pages/ModelTesting';
 import ModelMetrics from './pages/ModelMetrics';
+import DegradationReport from './pages/DegradationReport';
 import DownloadDataset from './pages/DownloadDataset';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
               <Route path="/deployed" element={<DeployedModels />} />
               <Route path="/testing" element={<ModelTesting />} />
               <Route path="/metrics" element={<ModelMetrics />} />
+              <Route path="/degradation" element={<DegradationReport />} />
               <Route path="/download" element={<DownloadDataset />} />
             </Routes>
           </Container>

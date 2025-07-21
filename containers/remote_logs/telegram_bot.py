@@ -12,6 +12,7 @@ from telegram.ext import (
 )
 import sqlite3
 from contextlib import closing
+import requests
 
 load_dotenv("remote_logs.env")
 
@@ -28,8 +29,48 @@ logger = logging.getLogger(__name__)
 # In-memory user state (for the quiz)
 user_states = {}
 
+def get_deployed_models_and_register_services():
+    """Fetch deployed models and register degradation report services"""
+    try:
+        response = requests.get("http://model_deployment:8000/get_deployed_models")
+        models = []
+        
+        if response.status_code == 200:
+            data = response.json()
+            for key, model_info in data.items():
+                model_name = model_info["model_name"]
+                version = model_info["version"]
+                models.append((model_name, version))
+        else:
+            logger.error(f"Failed to fetch deployed models: {response.text}")
+            return []
+
+        # Register degradation report services in database
+        with closing(sqlite3.connect("users.db")) as conn:
+            with conn:
+                for model_name, version in models:
+                    service_name = f"degradation_report_{model_name}_{version}"
+                    conn.execute("""
+                        INSERT OR IGNORE INTO services (service_name) VALUES (?)
+                    """, (service_name,))
+        
+        return models
+    except Exception as e:
+        logger.error(f"Error fetching deployed models: {e}")
+        return []
+
+def get_degradation_report_services():
+    """Get all degradation report services from database"""
+    with closing(sqlite3.connect("users.db")) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT service_name FROM services 
+            WHERE service_name LIKE 'degradation_report_%'
+        """)
+        return [row[0] for row in cursor.fetchall()]
+
 def _subscribe(user_telegram_id, email_address, service_name, uses_telegram, uses_email):
-    print(f"Subscribing user {user_telegram_id} to service {service_name} with email {email_address}, "
+    logger.info(f"Subscribing user {user_telegram_id} to service {service_name} with email {email_address}, "
           f"uses_telegram={uses_telegram}, uses_email={uses_email}")
     with closing(sqlite3.connect("users.db")) as conn:
         with conn:
@@ -179,21 +220,30 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Fetch deployed models and register services
+    get_deployed_models_and_register_services()
+    
+    keyboard = [
+        [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')],
+        [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')],
+        [InlineKeyboardButton("Degradation Reports", callback_data='quiz_service_DegradationReports')]
+    ]
+    
     await update.message.reply_text(
         "Let's set up your subscription. Select a service:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')],
-            [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')]
-        ])
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Backup", callback_data='unsub_service_Backup')],
+        [InlineKeyboardButton("Version Updates", callback_data='unsub_service_VersionUpdates')],
+        [InlineKeyboardButton("Degradation Reports", callback_data='unsub_service_DegradationReports')]
+    ]
+    
     await update.message.reply_text(
         "Select the service you want to unsubscribe from:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Backup", callback_data='unsub_service_Backup')],
-            [InlineKeyboardButton("Version Updates", callback_data='unsub_service_VersionUpdates')]
-        ])
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 # Button interactions (for inline keyboards)
@@ -209,11 +259,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == 'quiz_start':
+        # Fetch deployed models and register services
+        get_deployed_models_and_register_services()
+        
         await query.edit_message_text(
             "Which service do you want to subscribe to?",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Backup", callback_data='quiz_service_Backup')],
-                [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')]
+                [InlineKeyboardButton("Version Updates", callback_data='quiz_service_VersionUpdates')],
+                [InlineKeyboardButton("Degradation Reports", callback_data='quiz_service_DegradationReports')]
             ])
         )
         return
@@ -221,8 +275,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith('quiz_service_'):
         service = data.replace('quiz_service_', '')
         context.user_data['service'] = service
+        
+        if service == 'DegradationReports':
+            # Show available degradation report services
+            degradation_services = get_degradation_report_services()
+            if not degradation_services:
+                await query.edit_message_text(
+                    "❌ No deployed models found for degradation reports. Please try again later."
+                )
+                return
+            
+            # Create buttons for each degradation report service
+            keyboard = []
+            for service_name in degradation_services:
+                # Extract model name and version for display
+                display_name = service_name.replace('degradation_report_', '').replace('_', ' v')
+                keyboard.append([InlineKeyboardButton(display_name, callback_data=f'quiz_degradation_{service_name}')])
+            
+            await query.edit_message_text(
+                f"Select which model's degradation report you want to subscribe to:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.edit_message_text(
+                f"Selected service: {service}\n\nWhich platform(s) do you want to use?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Telegram", callback_data='quiz_platform_telegram')],
+                    [InlineKeyboardButton("Email", callback_data='quiz_platform_email')],
+                    [InlineKeyboardButton("Both", callback_data='quiz_platform_both')]
+                ])
+            )
+        return
+
+    if data.startswith('quiz_degradation_'):
+        service_name = data.replace('quiz_degradation_', '')
+        context.user_data['service'] = service_name
+        display_name = service_name.replace('degradation_report_', '').replace('_', ' v')
+        
         await query.edit_message_text(
-            f"Selected service: {service}\n\nWhich platform(s) do you want to use?",
+            f"Selected degradation report: {display_name}\n\nWhich platform(s) do you want to use?",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Telegram", callback_data='quiz_platform_telegram')],
                 [InlineKeyboardButton("Email", callback_data='quiz_platform_email')],
@@ -233,7 +324,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith('quiz_platform_'):
         platform = data.replace('quiz_platform_', '')
-        service = context.user_data.get('service').lower()
+        service = context.user_data.get('service')
 
         uses_telegram = 1 if platform in ['telegram', 'both'] else 0
         uses_email = 1 if platform in ['email', 'both'] else 0
@@ -247,12 +338,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             await query.edit_message_text("📧 Please send your email address to complete the subscription.")
         else:
-            if service=='versionupdates':
+            # Handle service name formatting
+            if service == 'VersionUpdates':
                 service = 'versions'
+            elif service == 'Backup':
+                service = 'backup'
+            # For degradation reports, service is already in correct format
 
             _subscribe(user_id, None, service, uses_telegram, uses_email)
+            display_service = service
+            if service.startswith('degradation_report_'):
+                display_service = service.replace('degradation_report_', '').replace('_', ' v') + ' degradation report'
+            
             await query.edit_message_text(
-                f"✅ Subscribed to *{service}* via *{platform}*.",
+                f"✅ Subscribed to *{display_service}* via *{platform}*.",
                 parse_mode="Markdown"
             )
 
@@ -262,8 +361,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith('unsub_service_'):
         service = data.replace('unsub_service_', '')
         context.user_data['unsub_service'] = service
+        
+        if service == 'DegradationReports':
+            # Show available degradation report services
+            degradation_services = get_degradation_report_services()
+            if not degradation_services:
+                await query.edit_message_text(
+                    "❌ No degradation report subscriptions found."
+                )
+                return
+            
+            # Create buttons for each degradation report service
+            keyboard = []
+            for service_name in degradation_services:
+                display_name = service_name.replace('degradation_report_', '').replace('_', ' v')
+                keyboard.append([InlineKeyboardButton(display_name, callback_data=f'unsub_degradation_{service_name}')])
+            
+            await query.edit_message_text(
+                f"Select which degradation report you want to unsubscribe from:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.edit_message_text(
+                f"Unsubscribe from *{service}*. Select method(s):",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Telegram", callback_data='unsub_platform_telegram')],
+                    [InlineKeyboardButton("Email", callback_data='unsub_platform_email')],
+                    [InlineKeyboardButton("Both", callback_data='unsub_platform_both')]
+                ]),
+                parse_mode="Markdown"
+            )
+        return
+
+    if data.startswith('unsub_degradation_'):
+        service_name = data.replace('unsub_degradation_', '')
+        context.user_data['unsub_service'] = service_name
+        display_name = service_name.replace('degradation_report_', '').replace('_', ' v')
+        
         await query.edit_message_text(
-            f"Unsubscribe from *{service}*. Select method(s):",
+            f"Unsubscribe from *{display_name} degradation report*. Select method(s):",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Telegram", callback_data='unsub_platform_telegram')],
                 [InlineKeyboardButton("Email", callback_data='unsub_platform_email')],
@@ -275,16 +411,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith('unsub_platform_'):
         platform = data.replace('unsub_platform_', '')
-        service = context.user_data.get('unsub_service').lower()
+        service = context.user_data.get('unsub_service')
 
         unsubscribe_telegram = platform in ['telegram', 'both']
         unsubscribe_email = platform in ['email', 'both']
 
+        # Handle service name formatting
+        if service == 'VersionUpdates':
+            service = 'versions'
+        elif service == 'Backup':
+            service = 'backup'
+        # For degradation reports, service is already in correct format
+
         success = _unsubscribe(user_id, service, unsubscribe_telegram, unsubscribe_email)
 
         if success:
+            display_service = service
+            if service.startswith('degradation_report_'):
+                display_service = service.replace('degradation_report_', '').replace('_', ' v') + ' degradation report'
+                
             await query.edit_message_text(
-                f"✅ Unsubscribed from *{service}* via *{platform}*.",
+                f"✅ Unsubscribed from *{display_service}* via *{platform}*.",
                 parse_mode="Markdown"
             )
         else:
@@ -301,10 +448,16 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ That doesn't look like a valid email address. Try again.")
         return
 
-    print(f"Received email: {email} for user {pending['user_id']}")
-    service = pending["service"].lower()
-    if service == 'versionupdates':
+    logger.info(f"Received email: {email} for user {pending['user_id']}")
+    service = pending["service"]
+    
+    # Handle service name formatting
+    if service == 'VersionUpdates':
         service = 'versions'
+    elif service == 'Backup':
+        service = 'backup'
+    # For degradation reports, service is already in correct format
+    
     _subscribe(
         pending["user_id"],
         email,
@@ -312,8 +465,13 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending["uses_telegram"],
         pending["uses_email"]
     )
+    
+    display_service = service
+    if service.startswith('degradation_report_'):
+        display_service = service.replace('degradation_report_', '').replace('_', ' v') + ' degradation report'
+    
     await update.message.reply_text(
-        f"✅ Subscribed to *{service}* using *email: {email}*.",
+        f"✅ Subscribed to *{display_service}* using *email: {email}*.",
         parse_mode="Markdown"
     )
     context.user_data["pending_subscription"] = None
@@ -329,7 +487,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_email))
 
-    print("Bot is running")
+    logger.info("Bot is running")
     app.run_polling()
 
 if __name__ == "__main__":

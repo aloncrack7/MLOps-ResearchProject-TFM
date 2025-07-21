@@ -5,7 +5,8 @@ RUN apt-get update && \
                        python3-pip \
                        python3-venv \
                        sqlite3 \
-                       cron
+                       cron \
+                       wget
 
 COPY . /app
 
@@ -18,6 +19,6 @@ RUN python3 -m venv venv && \
     sqlite3 users.db < schema.sql
 
 RUN chmod +x handle_updates.sh && \
-    crontab -l | { cat; echo "0 7 * * * /app/handle_updates.sh"; } | crontab -
+    crontab -l | { cat; echo "0 7 * * * /app/handle_updates.sh"; echo "5 7 * * 1 /app/handle_reports.py" } | crontab -
 
 CMD ["/app/venv/bin/python3", "telegram_bot.py"]
