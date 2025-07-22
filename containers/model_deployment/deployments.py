@@ -749,15 +749,6 @@ async def get_type_mapping():
         "description": "Mapping of Python types to MLflow types with examples and notes"
     }
 
-@app.post("/model/{model_name}-{version}")
-async def call_model(model_name: str, version: str, request: Request):
-    """
-    Call a model.
-    """
-
-    logger.info(f"Calling model {model_name}-{version}")
-    return await proxy_to_model(request, f"/{model_name}-{version}/invocations")
-
 def _clean_dataset(dataset):
     """
     Clean the dataset: convert cursor to list and ObjectId to str, then extract instances as rows.
