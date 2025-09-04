@@ -6,3 +6,5 @@ dotenv
 hdfs
 fsspec
 boto3
+matplotlib
+data-degradation-detector
