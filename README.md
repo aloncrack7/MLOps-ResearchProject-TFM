@@ -19,6 +19,8 @@ An end-to-end MLOps platform for dynamic MLflow model deployment, monitoring, an
 ![SQLite](https://img.shields.io/badge/sqlite-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
 ![Kaggle](https://img.shields.io/badge/Kaggle-035a7d?style=for-the-badge&logo=kaggle&logoColor=white)
 
+[![DOI](https://zenodo.org/badge/816219393.svg)](https://doi.org/10.5281/zenodo.17055907)
+
 ---
 
 ## 🚀 Overview
